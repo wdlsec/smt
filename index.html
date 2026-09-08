@@ -36,17 +36,91 @@
   </style>
 </head>
 <body>
-  <!-- Dynamic full-screen container -->
+  <!-- Dynamic full-screen container. Hosts either the Apps Script app or, during
+       maintenance, the local maintenance.html notice. -->
   <iframe id="app-frame" allow="geolocation; camera"></iframe>
+
   <script>
+    // =====================================================================
+    // MAINTENANCE MODE
+    // ---------------------------------------------------------------------
+    // To take the app offline:   set enabled to true, commit.
+    // To bring it back:          set enabled to false, commit.
+    //
+    // Flip the boolean rather than commenting the block out — a half-deleted
+    // comment marker breaks the whole script and takes the page down with it.
+    //
+    // The notice itself lives in maintenance.html. The wording below is passed
+    // to it as query parameters; that file holds its own defaults, so it still
+    // renders correctly if opened on its own.
+    // =====================================================================
+    const MAINTENANCE = {
+      enabled: false,
+
+      title: "Scheduled Maintenance",
+      message: "The Student Movement Tracker is temporarily unavailable while we make some updates. Please check back shortly.",
+
+      // Shown in the highlighted box. Set to "" to hide that box entirely.
+      eta: "Expected back: later today",
+
+      // Emoji shown above the heading.
+      icon: "🛠️",
+
+      // Optional auto-expiry. The notice clears itself at this moment even if you
+      // forget to set enabled back to false.
+      //   null                                  -> stays up until you change the code
+      //   new Date("2026-09-15T22:00:00+08:00") -> clears at 10pm SGT on 15 Sep
+      until: null,
+
+      // Append ?bypass=<this value> to the URL to load the real app while everyone
+      // else sees the notice. Useful for verifying a fix before going live again.
+      // This is convenience, not security: anyone reading the page source can find
+      // it. Change it to something only you would guess.
+      bypassKey: "letmein",
+
+      // Where the notice markup lives, relative to this page.
+      page: "maintenance.html"
+    };
+
     // Base Google Apps Script URL
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
     // Extract any query parameters attached to the GitHub link (e.g., "?page=form")
     const currentParams = window.location.search;
 
-    // Forward parameters into the iframe source URL on initial load
-    document.getElementById("app-frame").src = baseUrl + currentParams;
+    function isMaintenanceActive() {
+      if (!MAINTENANCE.enabled) return false;
+
+      // Expired window: treat as back online.
+      if (MAINTENANCE.until instanceof Date && !isNaN(MAINTENANCE.until.getTime())) {
+        if (Date.now() >= MAINTENANCE.until.getTime()) return false;
+      }
+
+      // Bypass for whoever is doing the maintenance.
+      const bypass = new URLSearchParams(currentParams).get("bypass");
+      if (MAINTENANCE.bypassKey && bypass === MAINTENANCE.bypassKey) return false;
+
+      return true;
+    }
+
+    // Builds "maintenance.html?title=...&message=..." with only the fields that are
+    // actually set, so blank config values fall through to that page's own defaults.
+    function buildMaintenanceUrl() {
+      const query = new URLSearchParams();
+      ["title", "message", "eta", "icon"].forEach(function (key) {
+        if (MAINTENANCE[key]) query.set(key, MAINTENANCE[key]);
+      });
+
+      const queryString = query.toString();
+      return MAINTENANCE.page + (queryString ? "?" + queryString : "");
+    }
+
+    // The iframe's src is set to exactly one of these two. During maintenance the
+    // Apps Script URL is never requested at all — the app does not load behind the
+    // notice, so there is nothing to flash into view on a slow connection.
+    document.getElementById("app-frame").src = isMaintenanceActive()
+      ? buildMaintenanceUrl()
+      : baseUrl + currentParams;
 
     // Apps Script renders the web app inside a nested sandbox iframe, so the message
     // arrives from a per-deployment *.googleusercontent.com origin rather than from
