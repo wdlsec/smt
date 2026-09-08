@@ -48,26 +48,18 @@
       margin-bottom: 12px;
     }
 
+    /* pre-line turns the "\n" characters in the message into real line breaks while
+       the text itself is still assigned with textContent — so the wording stays plain
+       text and cannot inject markup. */
     .maintenance-card p {
       color: #4a5568;
       font-size: 1rem;
-      line-height: 1.55;
-    }
-
-    .maintenance-eta {
-      display: none;
-      margin-top: 16px;
-      padding: 8px 14px;
-      background-color: #ebf3fa;
-      border: 1px solid #bee3f8;
-      border-radius: 6px;
-      color: #0054B4;
-      font-size: 0.95rem;
-      font-weight: 600;
+      line-height: 1.6;
+      white-space: pre-line;
     }
 
     .maintenance-retry {
-      margin-top: 22px;
+      margin-top: 24px;
       padding: 11px 26px;
       background-color: #0054B4;
       color: #ffffff;
@@ -90,6 +82,7 @@
     @media (max-width: 480px) {
       .maintenance-card { padding: 26px 20px; }
       .maintenance-card h1 { font-size: 1.2rem; }
+      .maintenance-card p { font-size: 0.95rem; }
     }
   </style>
 </head>
@@ -97,9 +90,10 @@
 
   <div class="maintenance-card">
     <div class="maintenance-icon" id="m-icon">&#128736;&#65039;</div>
-    <h1 id="m-title">Scheduled Maintenance</h1>
-    <p id="m-message">The Student Movement Tracker is temporarily unavailable while we make some updates. Please check back shortly.</p>
-    <div class="maintenance-eta" id="m-eta"></div>
+    <h1 id="m-title">Maintenance in Progress</h1>
+    <p id="m-message">WDLSS Student Movement Tracker is temporarily unavailable.
+Please check back shortly.
+In the meantime, do contact the SOS directly if you require immediate information.</p>
     <div>
       <button class="maintenance-retry" id="m-retry">Try Again</button>
     </div>
@@ -108,9 +102,9 @@
 
   <script>
     // This page is normally loaded into the full-screen iframe by index.html, which
-    // passes the wording through as query parameters. The markup above carries
-    // sensible defaults, so opening maintenance.html directly still renders a
-    // complete page — handy for previewing changes to the styling.
+    // passes the wording through as query parameters. The markup above carries the
+    // same defaults, so opening maintenance.html directly still renders a complete
+    // page — handy for previewing changes to the styling.
     (function () {
       var params = new URLSearchParams(window.location.search);
 
@@ -123,15 +117,6 @@
       applyText('m-icon', 'icon');
       applyText('m-title', 'title');
       applyText('m-message', 'message');
-
-      // The ETA box stays hidden unless there is something to put in it, so an empty
-      // eta in the config does not leave an empty blue rectangle on the page.
-      var eta = params.get('eta');
-      if (eta) {
-        var etaEl = document.getElementById('m-eta');
-        etaEl.textContent = eta;
-        etaEl.style.display = 'inline-block';
-      }
 
       // Reload the TOP window, not this frame. Reloading the frame would just fetch
       // this same notice again; reloading the top re-runs index.html, which re-reads
