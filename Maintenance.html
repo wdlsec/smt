@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maintenance &middot; Student Movement Tracker</title>
+  <link rel="icon" type="image/png" href="icon.png">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      background-color: #f7fafc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #1a202c;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      min-height: 100dvh;
+    }
+
+    .maintenance-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e0;
+      border-top: 5px solid #0054B4;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      max-width: 460px;
+      width: 100%;
+      padding: 32px 28px;
+      text-align: center;
+    }
+
+    .maintenance-icon { font-size: 2.6rem; line-height: 1; margin-bottom: 14px; }
+
+    .maintenance-card h1 {
+      color: #003380;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 12px;
+    }
+
+    .maintenance-card p {
+      color: #4a5568;
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+
+    .maintenance-eta {
+      display: none;
+      margin-top: 16px;
+      padding: 8px 14px;
+      background-color: #ebf3fa;
+      border: 1px solid #bee3f8;
+      border-radius: 6px;
+      color: #0054B4;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .maintenance-retry {
+      margin-top: 22px;
+      padding: 11px 26px;
+      background-color: #0054B4;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .maintenance-retry:hover { background-color: #003875; }
+
+    .maintenance-footer {
+      margin-top: 20px;
+      font-size: 0.8rem;
+      color: #718096;
+    }
+
+    @media (max-width: 480px) {
+      .maintenance-card { padding: 26px 20px; }
+      .maintenance-card h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="maintenance-card">
+    <div class="maintenance-icon" id="m-icon">&#128736;&#65039;</div>
+    <h1 id="m-title">Scheduled Maintenance</h1>
+    <p id="m-message">The Student Movement Tracker is temporarily unavailable while we make some updates. Please check back shortly.</p>
+    <div class="maintenance-eta" id="m-eta"></div>
+    <div>
+      <button class="maintenance-retry" id="m-retry">Try Again</button>
+    </div>
+    <div class="maintenance-footer">Student Movement Tracker</div>
+  </div>
+
+  <script>
+    // This page is normally loaded into the full-screen iframe by index.html, which
+    // passes the wording through as query parameters. The markup above carries
+    // sensible defaults, so opening maintenance.html directly still renders a
+    // complete page — handy for previewing changes to the styling.
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+
+      function applyText(elementId, paramName) {
+        var value = params.get(paramName);
+        if (value === null || value === '') return;      // keep the markup default
+        document.getElementById(elementId).textContent = value;
+      }
+
+      applyText('m-icon', 'icon');
+      applyText('m-title', 'title');
+      applyText('m-message', 'message');
+
+      // The ETA box stays hidden unless there is something to put in it, so an empty
+      // eta in the config does not leave an empty blue rectangle on the page.
+      var eta = params.get('eta');
+      if (eta) {
+        var etaEl = document.getElementById('m-eta');
+        etaEl.textContent = eta;
+        etaEl.style.display = 'inline-block';
+      }
+
+      // Reload the TOP window, not this frame. Reloading the frame would just fetch
+      // this same notice again; reloading the top re-runs index.html, which re-reads
+      // the MAINTENANCE flag and lets the app back in once it is switched off.
+      // Falls back to reloading self when opened directly rather than framed.
+      document.getElementById('m-retry').addEventListener('click', function () {
+        try {
+          window.top.location.reload();
+        } catch (e) {
+          window.location.reload();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
