@@ -47,30 +47,32 @@
     // To take the app offline:   set enabled to true, commit.
     // To bring it back:          set enabled to false, commit.
     //
+    // Flip the boolean rather than commenting the block out — a half-deleted
+    // comment marker breaks the whole script and takes the page down with it.
+    //
+    // The notice itself lives in maintenance.html. The wording below is passed
+    // to it as query parameters; that file holds the same defaults, so it still
+    // renders correctly if opened on its own.
     // =====================================================================
     const MAINTENANCE = {
-      enabled: true,
+      enabled: false,
 
-      title: "Scheduled Maintenance",
-      message: "The Student Movement Tracker is temporarily unavailable while we make some updates. Please check back shortly.",
+      title: "Maintenance in Progress",
 
-      // Shown in the highlighted box. Set to "" to hide that box entirely.
-      eta: "Expected back: later today",
+      // "\n" starts a new line. maintenance.html renders this with white-space:
+      // pre-line, so the breaks show up without any HTML in the string.
+      message: "WDLSS Student Movement Tracker is temporarily unavailable.\n" +
+               "Please check back shortly.\n" +
+               "In the meantime, do contact the SOS directly if you require immediate information.",
 
       // Emoji shown above the heading.
       icon: "🛠️",
-
-      // Optional auto-expiry. The notice clears itself at this moment even if you
-      // forget to set enabled back to false.
-      //   null                                  -> stays up until you change the code
-      //   new Date("2026-09-15T22:00:00+08:00") -> clears at 10pm SGT on 15 Sep
-      until: null,
 
       // Append ?bypass=<this value> to the URL to load the real app while everyone
       // else sees the notice. Useful for verifying a fix before going live again.
       // This is convenience, not security: anyone reading the page source can find
       // it. Change it to something only you would guess.
-      bypassKey: "admin",
+      bypassKey: "letmein",
 
       // Where the notice markup lives, relative to this page.
       page: "maintenance.html"
@@ -85,11 +87,6 @@
     function isMaintenanceActive() {
       if (!MAINTENANCE.enabled) return false;
 
-      // Expired window: treat as back online.
-      if (MAINTENANCE.until instanceof Date && !isNaN(MAINTENANCE.until.getTime())) {
-        if (Date.now() >= MAINTENANCE.until.getTime()) return false;
-      }
-
       // Bypass for whoever is doing the maintenance.
       const bypass = new URLSearchParams(currentParams).get("bypass");
       if (MAINTENANCE.bypassKey && bypass === MAINTENANCE.bypassKey) return false;
@@ -101,7 +98,7 @@
     // actually set, so blank config values fall through to that page's own defaults.
     function buildMaintenanceUrl() {
       const query = new URLSearchParams();
-      ["title", "message", "eta", "icon"].forEach(function (key) {
+      ["title", "message", "icon"].forEach(function (key) {
         if (MAINTENANCE[key]) query.set(key, MAINTENANCE[key]);
       });
 
