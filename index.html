@@ -50,33 +50,18 @@
     // Flip the boolean rather than commenting the block out — a half-deleted
     // comment marker breaks the whole script and takes the page down with it.
     //
-    // The notice itself lives in maintenance.html. The wording below is passed
-    // to it as query parameters; that file holds the same defaults, so it still
-    // renders correctly if opened on its own.
+    // The wording of the notice is NOT here. It lives in maintenance.html;
+    // edit that file to change what people read.
     // =====================================================================
     const MAINTENANCE = {
       enabled: true,
 
-      title: "Maintenance in Progress",
-
-      // "\n" starts a new line. maintenance.html renders this with white-space:
-      // pre-line, so the breaks show up without any HTML in the string.
-      message: "WDLSS Student Movement Tracker is temporarily unavailable.\n" +
-               "Please check back shortly.\n" +
-               "In the meantime, do contact the SOS directly if you require immediate information.",
-
-      // Emoji shown above the heading.
-      icon: "🛠️",
-
-      // Append ?bypass=<this value> to the URL to load the real app while everyone
-      // else sees the notice. Useful for verifying a fix before going live again.
-      // This is convenience, not security: anyone reading the page source can find
-      // it. Change it to something only you would guess.
-      bypassKey: "letmein",
-
-      // Where the notice markup lives, relative to this page.
-      page: "maintenance.html"
+      // Append ?bypass=<this value> to the URL to load the real app while everyone else sees the notice.
+      bypassKey: "admin"
     };
+
+    // The notice page, relative to this file.
+    const MAINTENANCE_PAGE = "maintenance.html";
 
     // Base Google Apps Script URL
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
@@ -94,23 +79,11 @@
       return true;
     }
 
-    // Builds "maintenance.html?title=...&message=..." with only the fields that are
-    // actually set, so blank config values fall through to that page's own defaults.
-    function buildMaintenanceUrl() {
-      const query = new URLSearchParams();
-      ["title", "message", "icon"].forEach(function (key) {
-        if (MAINTENANCE[key]) query.set(key, MAINTENANCE[key]);
-      });
-
-      const queryString = query.toString();
-      return MAINTENANCE.page + (queryString ? "?" + queryString : "");
-    }
-
     // The iframe's src is set to exactly one of these two. During maintenance the
     // Apps Script URL is never requested at all — the app does not load behind the
     // notice, so there is nothing to flash into view on a slow connection.
     document.getElementById("app-frame").src = isMaintenanceActive()
-      ? buildMaintenanceUrl()
+      ? MAINTENANCE_PAGE
       : baseUrl + currentParams;
 
     // Apps Script renders the web app inside a nested sandbox iframe, so the message
