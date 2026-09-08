@@ -54,14 +54,25 @@
     // edit that file to change what people read.
     // =====================================================================
     const MAINTENANCE = {
-      enabled: true,
+      enabled: false,
 
-      // Append ?bypass=<this value> to the URL to load the real app while everyone else sees the notice.
-      bypassKey: "admin"
+      // Append ?bypass=<this value> to the URL to load the real app while everyone
+      // else sees the notice. Useful for verifying a fix before going live again.
+      // This is convenience, not security: anyone reading the page source can find
+      // it. Change it to something only you would guess.
+      bypassKey: "letmein"
     };
 
     // The notice page, relative to this file.
-    const MAINTENANCE_PAGE = "maintenance.html";
+    //
+    // The timestamp is a cache-buster, and it matters more than it looks. Reloading
+    // this outer page does NOT force the browser to re-fetch an iframe's contents —
+    // it happily reuses its cached copy — and GitHub Pages serves HTML with a
+    // ten-minute max-age on top of that. So after editing maintenance.html you could
+    // hard-refresh and still be shown the previous wording. A URL the cache has never
+    // seen sidesteps both layers. The cost is nil: this page is only ever requested
+    // while the app is deliberately offline.
+    const MAINTENANCE_PAGE = "maintenance.html?t=" + Date.now();
 
     // Base Google Apps Script URL
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
