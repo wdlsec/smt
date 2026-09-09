@@ -54,25 +54,17 @@
     // edit that file to change what people read.
     // =====================================================================
     const MAINTENANCE = {
-      enabled: true,
+      enabled: false,
 
       // Append ?bypass=<this value> to the URL to load the real app while everyone
       // else sees the notice. Useful for verifying a fix before going live again.
       // This is convenience, not security: anyone reading the page source can find
       // it. Change it to something only you would guess.
-      bypassKey: "admin"
+      bypassKey: "letmein"
     };
 
     // The notice page, relative to this file.
-    //
-    // The timestamp is a cache-buster, and it matters more than it looks. Reloading
-    // this outer page does NOT force the browser to re-fetch an iframe's contents —
-    // it happily reuses its cached copy — and GitHub Pages serves HTML with a
-    // ten-minute max-age on top of that. So after editing maintenance.html you could
-    // hard-refresh and still be shown the previous wording. A URL the cache has never
-    // seen sidesteps both layers. The cost is nil: this page is only ever requested
-    // while the app is deliberately offline.
-    const MAINTENANCE_PAGE = "maintenance.html?t=" + Date.now();
+    const MAINTENANCE_PAGE = "maintenance.html";
 
     // Base Google Apps Script URL
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
@@ -80,21 +72,43 @@
     // Extract any query parameters attached to the GitHub link (e.g., "?page=form")
     const currentParams = window.location.search;
 
+    // The key that was submitted this visit, if any. The hidden panel in
+    // maintenance.html reloads this page with ?bypass=<key> attached.
+    const submittedKey = new URLSearchParams(currentParams).get("bypass");
+
     function isMaintenanceActive() {
       if (!MAINTENANCE.enabled) return false;
 
       // Bypass for whoever is doing the maintenance.
-      const bypass = new URLSearchParams(currentParams).get("bypass");
-      if (MAINTENANCE.bypassKey && bypass === MAINTENANCE.bypassKey) return false;
+      if (MAINTENANCE.bypassKey && submittedKey === MAINTENANCE.bypassKey) return false;
 
       return true;
+    }
+
+    // Builds the notice URL.
+    //
+    // "t" is a cache-buster, and it matters more than it looks. Reloading this outer
+    // page does NOT force the browser to re-fetch an iframe's contents — it happily
+    // reuses its cached copy — and GitHub Pages serves HTML with a ten-minute
+    // max-age on top of that. So after editing maintenance.html you could hard-refresh
+    // and still be shown the previous wording. A URL the cache has never seen
+    // sidesteps both layers, and costs nothing: this page is only ever requested
+    // while the app is deliberately offline.
+    //
+    // "bad" tells the notice that a key was tried and rejected, so it can reopen the
+    // panel with an error. Only the verdict crosses over — the key never leaves
+    // this file.
+    function buildMaintenanceUrl() {
+      let url = MAINTENANCE_PAGE + "?t=" + Date.now();
+      if (submittedKey) url += "&bad=1";
+      return url;
     }
 
     // The iframe's src is set to exactly one of these two. During maintenance the
     // Apps Script URL is never requested at all — the app does not load behind the
     // notice, so there is nothing to flash into view on a slow connection.
     document.getElementById("app-frame").src = isMaintenanceActive()
-      ? MAINTENANCE_PAGE
+      ? buildMaintenanceUrl()
       : baseUrl + currentParams;
 
     // Apps Script renders the web app inside a nested sandbox iframe, so the message
