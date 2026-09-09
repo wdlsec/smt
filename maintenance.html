@@ -23,6 +23,7 @@
       min-height: 100dvh;
     }
     .maintenance-card {
+      position: relative;          /* anchors the hidden admin button */
       background: #ffffff;
       border: 1px solid #cbd5e0;
       border-top: 5px solid #0054B4;
@@ -60,6 +61,92 @@
       transition: background-color 0.2s ease;
     }
     .maintenance-retry:hover { background-color: #003875; }
+
+    /* ---- Hidden admin bypass ------------------------------------------------
+       A transparent hit area in the top-right corner of the card. Invisible at
+       rest, faintly visible on hover or keyboard focus so it is still reachable
+       by Tab rather than being a mouse-only secret. */
+    .admin-toggle {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      line-height: 34px;
+      color: #a0aec0;
+      opacity: 0;
+      cursor: default;
+      transition: opacity 0.2s ease, background-color 0.2s ease;
+    }
+    .admin-toggle:hover,
+    .admin-toggle:focus-visible {
+      opacity: 1;
+      background-color: #edf2f7;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .admin-panel {
+      display: none;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f0;
+      text-align: left;
+    }
+    .admin-panel.is-open { display: block; }
+
+    .admin-panel label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 6px;
+    }
+
+    .admin-row { display: flex; gap: 8px; }
+
+    .admin-panel input {
+      flex: 1;
+      min-width: 0;
+      padding: 9px 12px;
+      border: 1px solid #cbd5e0;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 16px;   /* 16px stops iOS Safari zooming the page on focus */
+      color: #1a202c;
+    }
+    .admin-panel input:focus {
+      outline: none;
+      border-color: #0054B4;
+      box-shadow: 0 0 0 2px rgba(0, 84, 180, 0.18);
+    }
+
+    .admin-panel button {
+      padding: 9px 18px;
+      background-color: #0054B4;
+      color: #ffffff;
+      border: none;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .admin-panel button:hover { background-color: #003875; }
+
+    .admin-error {
+      display: none;
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #c53030;
+    }
+    .admin-error.is-visible { display: block; }
+
     @media (max-width: 480px) {
       .maintenance-card { padding: 26px 20px; }
       .maintenance-card h1 { font-size: 1.2rem; }
@@ -74,6 +161,10 @@
        Edit the heading and paragraph below to change what people see.
        =================================================================== -->
   <div class="maintenance-card">
+
+    <!-- Hidden bypass entry. Deliberately unlabelled and invisible until hovered. -->
+    <button class="admin-toggle" id="admin-toggle" title="Staff access" aria-label="Staff access">&#128273;</button>
+
     <div class="maintenance-icon">&#128736;&#65039;</div>
     <h1>Maintenance in Progress</h1>
     <p>
@@ -83,20 +174,86 @@
     <div>
       <button class="maintenance-retry" id="m-retry">Try Again</button>
     </div>
+
+    <div class="admin-panel" id="admin-panel">
+      <label for="admin-key">Bypass key</label>
+      <div class="admin-row">
+        <input type="password" id="admin-key" autocomplete="off" autocapitalize="off"
+               autocorrect="off" spellcheck="false" placeholder="Enter key">
+        <button type="button" id="admin-go">Go</button>
+      </div>
+      <div class="admin-error" id="admin-error">Incorrect key. Try again.</div>
+    </div>
   </div>
+
   <script>
-    // Reload the TOP window, not this frame. Reloading the frame would just fetch
-    // this same notice again; reloading the top re-runs index.html, which re-reads
-    // the MAINTENANCE flag and lets the app back in once it is switched off.
-    // Falls back to reloading self when this page is opened directly rather than
-    // framed — which is also how you preview styling changes without touching the flag.
-    document.getElementById('m-retry').addEventListener('click', function () {
-      try {
-        window.top.location.reload();
-      } catch (e) {
-        window.location.reload();
+    (function () {
+      var toggle = document.getElementById('admin-toggle');
+      var panel  = document.getElementById('admin-panel');
+      var input  = document.getElementById('admin-key');
+      var errorEl = document.getElementById('admin-error');
+
+      // index.html appends "bad=1" when a bypass key was supplied but did not match.
+      // The key itself is never sent here, so this page cannot validate anything
+      // itself — it only reports back the verdict index.html already reached.
+      if (new URLSearchParams(window.location.search).get('bad') === '1') {
+        panel.classList.add('is-open');
+        errorEl.classList.add('is-visible');
       }
-    });
+
+      toggle.addEventListener('click', function () {
+        var opening = !panel.classList.contains('is-open');
+        panel.classList.toggle('is-open', opening);
+        if (opening) input.focus();
+      });
+
+      // Navigates the TOP window so index.html re-runs and re-evaluates the flag.
+      // Both pages are served from the same origin, so reading window.top.location
+      // is permitted; the try/catch covers the case of this page being framed by
+      // something else entirely, where it falls back to navigating itself.
+      function submitKey() {
+        var key = input.value.trim();
+        if (!key) { input.focus(); return; }
+
+        try {
+          var isFramed = window.top !== window.self;
+          var target = isFramed ? window.top : window;
+
+          // When framed, reload the parent with the key attached. When this page was
+          // opened directly, go to index.html instead — otherwise the key would be
+          // appended to a page that does not check it.
+          var url = isFramed
+            ? new URL(target.location.href)
+            : new URL('./', window.location.href);
+
+          url.searchParams.set('bypass', key);
+          url.searchParams.delete('bad');   // stale verdict from a previous attempt
+          target.location.replace(url.toString());
+        } catch (e) {
+          window.location.replace('./?bypass=' + encodeURIComponent(key));
+        }
+      }
+
+      document.getElementById('admin-go').addEventListener('click', submitKey);
+
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          submitKey();
+        }
+      });
+
+      // Reload the TOP window, not this frame. Reloading the frame would just fetch
+      // this same notice again; reloading the top re-runs index.html, which re-reads
+      // the MAINTENANCE flag and lets the app back in once it is switched off.
+      document.getElementById('m-retry').addEventListener('click', function () {
+        try {
+          window.top.location.reload();
+        } catch (e) {
+          window.location.reload();
+        }
+      });
+    })();
   </script>
 </body>
 </html>
