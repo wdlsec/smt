@@ -14,10 +14,19 @@
     // which means the notice comes up in the theme the teacher actually chose,
     // even though the app itself is on a different origin and is not loaded.
     (function () {
-      var saved = null;
-      try { saved = localStorage.getItem('smt-theme'); } catch (e) {}
-      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+      var saved = null, base = null;
+      try {
+        saved = localStorage.getItem('smt-theme');
+        base  = localStorage.getItem('smt-theme-base');
+      } catch (e) {}
+
+      var system = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ? 'dark' : 'light';
+
+      // A stored choice only stands while the device is still set the way it was
+      // when that choice was made. Same rule as Globals.html in the Apps Script
+      // project — if you change one, change the other.
+      document.documentElement.setAttribute('data-theme', (saved && base === system) ? saved : system);
     })();
   </script>
 
@@ -345,9 +354,40 @@
       // into the app and the other way round. index.html reads this store too,
       // which is how the status-bar strip stays in step.
       var THEME_KEY = 'smt-theme';
+      var THEME_BASE_KEY = 'smt-theme-base';
 
+      function systemTheme() {
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          ? 'dark' : 'light';
+      }
+
+      // The chosen theme plus the device setting at the time of choosing. The
+      // override lasts only until the device setting moves.
       function storeTheme(theme) {
-        try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
+        try {
+          localStorage.setItem(THEME_KEY, theme);
+          localStorage.setItem(THEME_BASE_KEY, systemTheme());
+        } catch (e) { /* private mode */ }
+      }
+
+      function clearStoredTheme() {
+        try {
+          localStorage.removeItem(THEME_KEY);
+          localStorage.removeItem(THEME_BASE_KEY);
+        } catch (e) { /* private mode */ }
+      }
+
+      function resolveTheme() {
+        var system = systemTheme();
+        var choice = null, base = null;
+        try {
+          choice = localStorage.getItem(THEME_KEY);
+          base   = localStorage.getItem(THEME_BASE_KEY);
+        } catch (e) {}
+
+        if (choice && base === system) return choice;
+        if (choice) clearStoredTheme();
+        return system;
       }
 
       // This page has no navbar, so the strip above it borders the PAGE background.
@@ -392,7 +432,16 @@
 
       // The attribute is already set by the head script; this syncs the button
       // and tells the wrapper.
-      applyTheme(document.documentElement.getAttribute('data-theme'));
+      applyTheme(resolveTheme());
+
+      // Repaint the moment the device setting changes, rather than on reload
+      if (window.matchMedia) {
+        var themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        var onSystemThemeChange = function () { applyTheme(resolveTheme()); };
+
+        if (themeQuery.addEventListener) themeQuery.addEventListener('change', onSystemThemeChange);
+        else if (themeQuery.addListener) themeQuery.addListener(onSystemThemeChange);
+      }
 
       // ==========================================
       // STAFF BYPASS
