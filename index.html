@@ -98,9 +98,15 @@
     // Written as an inline style rather than left to the stylesheet. The cascade
     // has too many ways to go wrong here, and this is the one thing on the page
     // that has to be right.
-    function applyWrapperTheme(theme) {
+    // colour is optional. When the framed page supplies one it wins, because only
+    // that page knows which of its surfaces actually borders the strip: the app
+    // sends its navbar (--surface), the maintenance notice sends its page
+    // background (--bg-light). Guessing here is what left a visible seam above
+    // the maintenance card.
+    function applyWrapperTheme(theme, colour) {
       var resolved = theme === 'dark' ? 'dark' : 'light';
-      var colour = THEME_COLOURS[resolved];
+
+      if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
 
       document.documentElement.setAttribute('data-theme', resolved);
       document.documentElement.style.backgroundColor = colour;
@@ -215,7 +221,7 @@
       if (event.data.type === "THEME") {
         const theme = event.data.theme === "dark" ? "dark" : "light";
         writeStoredTheme(theme);
-        if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme);
+        if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme, event.data.colour);
         return;
       }
 
