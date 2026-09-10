@@ -11,7 +11,7 @@
        status-bar strip with the body background instead, which is why the CSS
        below matters more than the meta tags on iPhone. -->
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0F141A" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#1A222C" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
   <!-- Android Full-Screen Standalone App Settings -->
   <link rel="manifest" href="manifest.json">
@@ -32,13 +32,15 @@
       background-color: #ffffff;
     }
     /* The strip above the iframe on iOS standalone is this element's background.
-       The device preference is the opening guess; the app corrects it over
-       postMessage once it knows what the user actually chose. */
+       It sits directly above the app's NAVBAR, so it has to match the navbar
+       surface (--surface: #1A222C), not the page background (--bg-light:
+       #0F141A). Using the page colour is what produced the visible seam. */
     @media (prefers-color-scheme: dark) {
-      html, body { background-color: #0F141A; }
+      html, body { background-color: #1A222C; }
     }
+    /* Only ever set when STATUS_BAR.followAppTheme is on — see the script below. */
     html[data-theme="light"], html[data-theme="light"] body { background-color: #ffffff; }
-    html[data-theme="dark"], html[data-theme="dark"] body { background-color: #0F141A; }
+    html[data-theme="dark"], html[data-theme="dark"] body { background-color: #1A222C; }
     iframe {
       width: 100vw;
       height: 100dvh;
@@ -66,6 +68,31 @@
     // The wording of the notice is NOT here. It lives in maintenance.html;
     // edit that file to change what people read.
     // =====================================================================
+    // =====================================================================
+    // STATUS BAR STRIP (iOS standalone)
+    // ---------------------------------------------------------------------
+    // The band above the app is this page's background, and it is the only
+    // part of the screen the app itself cannot paint.
+    //
+    // followAppTheme = false (default, recommended)
+    //   The strip follows the PHONE's appearance setting. This is deliberate:
+    //   with apple-mobile-web-app-status-bar-style="default", iOS picks the
+    //   clock and battery text colour from the system setting and ignores this
+    //   page entirely. Force the strip light on a dark-mode phone and the clock
+    //   goes white-on-white; force it dark on a light phone and it goes
+    //   black-on-black. So someone who overrides the theme inside the app sees
+    //   one band that does not match — and a status bar they can still read.
+    //
+    // followAppTheme = true
+    //   The strip obeys whatever was chosen inside the app. Seamless in every
+    //   case except a deliberate override, where the status bar text may become
+    //   hard or impossible to read. Only worth it if your users never fight
+    //   their phone's own setting.
+    // =====================================================================
+    const STATUS_BAR = {
+      followAppTheme: false
+    };
+
     const MAINTENANCE = {
       enabled: true,
 
@@ -151,12 +178,14 @@
       // app's localStorage (different origin), so this message is the only way to
       // know that someone chose dark on a light device, or the reverse.
       if (event.data.type === "THEME") {
-        const theme = event.data.theme === "dark" ? "dark" : "light";
-        document.documentElement.setAttribute("data-theme", theme);
+        if (STATUS_BAR.followAppTheme) {
+          const theme = event.data.theme === "dark" ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
 
-        const meta = document.querySelector('meta[name="theme-color"]:not([media])') ||
-                     document.head.appendChild(Object.assign(document.createElement("meta"), { name: "theme-color" }));
-        meta.setAttribute("content", theme === "dark" ? "#0F141A" : "#ffffff");
+          const meta = document.querySelector('meta[name="theme-color"]:not([media])') ||
+                       document.head.appendChild(Object.assign(document.createElement("meta"), { name: "theme-color" }));
+          meta.setAttribute("content", theme === "dark" ? "#1A222C" : "#ffffff");
+        }
         return;
       }
 
