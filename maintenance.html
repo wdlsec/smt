@@ -5,14 +5,79 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Maintenance &middot; Student Movement Tracker</title>
   <link rel="icon" type="image/png" href="icon.png">
+
+  <script>
+    // Runs before the body paints so a dark-mode visitor never sees a white flash.
+    //
+    // This page is served from the same origin as index.html, so they share one
+    // localStorage. index.html caches whatever theme the app last reported there,
+    // which means the notice comes up in the theme the teacher actually chose,
+    // even though the app itself is on a different origin and is not loaded.
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('smt-theme'); } catch (e) {}
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+    })();
+  </script>
+
   <style>
+    /* Token names and values match CSS_Theme.html in the Apps Script project.
+       This page cannot include that file — different origin — so the handful it
+       needs is repeated here. Change a colour there, change it here too. */
+    :root {
+      color-scheme: light;
+      --bg-light: #f7fafc;
+      --surface: #ffffff;
+      --surface-sunken: #f8fafc;
+      --surface-hover: #edf2f7;
+      --primary: #0054B4;
+      --primary-dark: #003380;
+      --primary-btn: #0054B4;
+      --primary-btn-hover: #003875;
+      --on-primary: #ffffff;
+      --focus-ring: rgba(0, 84, 180, 0.18);
+      --text-main: #1a202c;
+      --text-muted: #4a5568;
+      --text-placeholder: #a0aec0;
+      --border: #cbd5e0;
+      --border-input: #cbd5e0;
+      --border-subtle: #e2e8f0;
+      --alert: #c53030;
+      --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
+      --shadow-row: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg-light: #0F141A;
+      --surface: #1A222C;
+      --surface-sunken: #161D26;
+      --surface-hover: #29333F;
+      --primary: #5AA0F2;
+      --primary-dark: #86B4E8;
+      --primary-btn: #1F6FEB;
+      --primary-btn-hover: #3B85F5;
+      --on-primary: #ffffff;
+      --focus-ring: rgba(90, 160, 242, 0.35);
+      --text-main: #E3E8ED;
+      --text-muted: #97A3B0;
+      --text-placeholder: #6A7683;
+      --border: #2E3A47;
+      --border-input: #3A4757;
+      --border-subtle: #29333F;
+      --alert: #F87171;
+      --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.55);
+      --shadow-row: 0 2px 4px rgba(0, 0, 0, 0.45);
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%;
       min-height: 100%;
-      background-color: #f7fafc;
+      background-color: var(--bg-light);
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #1a202c;
+      color: var(--text-main);
       -webkit-text-size-adjust: 100%;
     }
     body {
@@ -23,12 +88,12 @@
       min-height: 100dvh;
     }
     .maintenance-card {
-      position: relative;          /* anchors the hidden admin button */
-      background: #ffffff;
-      border: 1px solid #cbd5e0;
-      border-top: 5px solid #0054B4;
+      position: relative;          /* anchors the theme toggle and admin button */
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 5px solid var(--primary);
       border-radius: 10px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      box-shadow: var(--shadow-card);
       max-width: 460px;
       width: 100%;
       padding: 32px 28px;
@@ -36,22 +101,22 @@
     }
     .maintenance-icon { font-size: 2.6rem; line-height: 1; margin-bottom: 14px; }
     .maintenance-card h1 {
-      color: #003380;
+      color: var(--primary-dark);
       font-size: 1.35rem;
       font-weight: 700;
       letter-spacing: -0.3px;
       margin-bottom: 12px;
     }
     .maintenance-card p {
-      color: #4a5568;
+      color: var(--text-muted);
       font-size: 1rem;
       line-height: 1.6;
     }
     .maintenance-retry {
       margin-top: 24px;
       padding: 11px 26px;
-      background-color: #0054B4;
-      color: #ffffff;
+      background-color: var(--primary-btn);
+      color: var(--on-primary);
       border: none;
       border-radius: 6px;
       font-family: inherit;
@@ -60,7 +125,71 @@
       cursor: pointer;
       transition: background-color 0.2s ease;
     }
-    .maintenance-retry:hover { background-color: #003875; }
+    .maintenance-retry:hover { background-color: var(--primary-btn-hover); }
+
+    /* ---- Theme toggle -------------------------------------------------------
+       Same pill as the navbar in the app: the knob carries the mode currently in
+       force and covers the faint icon beneath it, so the icon still showing on
+       the other side is the one a tap switches to. Sits top-left, mirroring the
+       hidden staff key at top-right. */
+    .theme-toggle {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 58px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      background: var(--surface-sunken);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .theme-toggle:hover { border-color: var(--border-input); }
+
+    .theme-toggle-icon {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      line-height: 1;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .theme-toggle-icon.icon-sun { left: 6px; }
+    .theme-toggle-icon.icon-moon { right: 6px; }
+
+    /* 28px of travel = padding box (56) - left offset (2) - knob (24) */
+    .theme-toggle-knob {
+      position: absolute;
+      top: 50%;
+      left: 2px;
+      width: 24px;
+      height: 24px;
+      margin-top: -12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      line-height: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      box-shadow: var(--shadow-row);
+      transform: translateX(0);
+      transition: transform 0.22s ease, background-color 0.2s ease;
+    }
+    html[data-theme="dark"] .theme-toggle-knob {
+      transform: translateX(28px);
+      background: var(--surface-sunken);
+    }
+
+    .knob-icon-moon { display: none; }
+    html[data-theme="dark"] .knob-icon-moon { display: inline; }
+    html[data-theme="dark"] .knob-icon-sun { display: none; }
 
     /* ---- Hidden admin bypass ------------------------------------------------
        A transparent hit area in the top-right corner of the card. Invisible at
@@ -78,7 +207,7 @@
       border-radius: 6px;
       font-size: 0.95rem;
       line-height: 34px;
-      color: #a0aec0;
+      color: var(--text-placeholder);
       opacity: 0;
       cursor: default;
       transition: opacity 0.2s ease, background-color 0.2s ease;
@@ -86,7 +215,7 @@
     .admin-toggle:hover,
     .admin-toggle:focus-visible {
       opacity: 1;
-      background-color: #edf2f7;
+      background-color: var(--surface-hover);
       cursor: pointer;
       outline: none;
     }
@@ -95,7 +224,7 @@
       display: none;
       margin-top: 22px;
       padding-top: 18px;
-      border-top: 1px solid #e2e8f0;
+      border-top: 1px solid var(--border-subtle);
       text-align: left;
     }
     .admin-panel.is-open { display: block; }
@@ -104,7 +233,7 @@
       display: block;
       font-size: 0.8rem;
       font-weight: 600;
-      color: #4a5568;
+      color: var(--text-muted);
       margin-bottom: 6px;
     }
 
@@ -114,22 +243,23 @@
       flex: 1;
       min-width: 0;
       padding: 9px 12px;
-      border: 1px solid #cbd5e0;
+      background-color: var(--surface);
+      border: 1px solid var(--border-input);
       border-radius: 5px;
       font-family: inherit;
       font-size: 16px;   /* 16px stops iOS Safari zooming the page on focus */
-      color: #1a202c;
+      color: var(--text-main);
     }
     .admin-panel input:focus {
       outline: none;
-      border-color: #0054B4;
-      box-shadow: 0 0 0 2px rgba(0, 84, 180, 0.18);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--focus-ring);
     }
 
     .admin-panel button {
       padding: 9px 18px;
-      background-color: #0054B4;
-      color: #ffffff;
+      background-color: var(--primary-btn);
+      color: var(--on-primary);
       border: none;
       border-radius: 5px;
       font-family: inherit;
@@ -137,13 +267,13 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .admin-panel button:hover { background-color: #003875; }
+    .admin-panel button:hover { background-color: var(--primary-btn-hover); }
 
     .admin-error {
       display: none;
       margin-top: 8px;
       font-size: 0.82rem;
-      color: #c53030;
+      color: var(--alert);
     }
     .admin-error.is-visible { display: block; }
 
@@ -161,6 +291,17 @@
        Edit the heading and paragraph below to change what people see.
        =================================================================== -->
   <div class="maintenance-card">
+
+    <!-- Theme toggle. Mirrors the one in the app's navbar. -->
+    <button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false"
+            title="Switch to dark mode" aria-label="Switch to dark mode">
+      <span class="theme-toggle-icon icon-sun" aria-hidden="true">&#9728;&#65039;</span>
+      <span class="theme-toggle-icon icon-moon" aria-hidden="true">&#127769;</span>
+      <span class="theme-toggle-knob" aria-hidden="true">
+        <span class="knob-icon-sun">&#9728;&#65039;</span>
+        <span class="knob-icon-moon">&#127769;</span>
+      </span>
+    </button>
 
     <!-- Hidden bypass entry. Deliberately unlabelled and invisible until hovered. -->
     <button class="admin-toggle" id="admin-toggle" title="Staff access" aria-label="Staff access">&#128273;</button>
@@ -188,6 +329,50 @@
 
   <script>
     (function () {
+      // ==========================================
+      // THEME
+      // ==========================================
+      // Same key and the same rules as the app, so a choice made here survives
+      // into the app and the other way round. index.html reads this store too,
+      // which is how the status-bar strip stays in step.
+      var THEME_KEY = 'smt-theme';
+
+      function storeTheme(theme) {
+        try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
+      }
+
+      function applyTheme(theme) {
+        var isDark = theme === 'dark';
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+        var btn = document.getElementById('theme-toggle');
+        if (btn) {
+          // The label names where a tap takes you, not where you are
+          var label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+          btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
+          btn.setAttribute('aria-label', label);
+          btn.setAttribute('title', label);
+        }
+
+        // Repaint the strip above this frame. index.html verifies the sender.
+        try {
+          window.top.postMessage({ type: 'THEME', theme: isDark ? 'dark' : 'light' }, '*');
+        } catch (e) { /* opened directly rather than framed */ }
+      }
+
+      document.getElementById('theme-toggle').addEventListener('click', function () {
+        var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        storeTheme(next);
+      });
+
+      // The attribute is already set by the head script; this syncs the button
+      // and tells the wrapper.
+      applyTheme(document.documentElement.getAttribute('data-theme'));
+
+      // ==========================================
+      // STAFF BYPASS
+      // ==========================================
       var toggle = document.getElementById('admin-toggle');
       var panel  = document.getElementById('admin-panel');
       var input  = document.getElementById('admin-key');
