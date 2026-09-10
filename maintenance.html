@@ -71,6 +71,15 @@
       --shadow-row: 0 2px 4px rgba(0, 0, 0, 0.45);
     }
 
+    /* Transitions are suppressed for the two frames it takes to repaint in the
+       new theme, otherwise every transitioned property animates at a slightly
+       different rate and the card smears between themes. The knob still slides,
+       because that one is the control responding to the tap. */
+    html.theme-switching *,
+    html.theme-switching *::before,
+    html.theme-switching *::after { transition: none !important; }
+    html.theme-switching .theme-toggle-knob { transition: transform 0.22s ease !important; }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%;
@@ -341,9 +350,20 @@
         try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
       }
 
+      // This page has no navbar, so the strip above it borders the PAGE background.
+      // These are --bg-light from the token block above, not --surface.
+      var PAGE_COLOURS = { light: '#f7fafc', dark: '#0F141A' };
+
       function applyTheme(theme) {
         var isDark = theme === 'dark';
-        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        var root = document.documentElement;
+
+        root.classList.add('theme-switching');
+        root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { root.classList.remove('theme-switching'); });
+        });
 
         var btn = document.getElementById('theme-toggle');
         if (btn) {
@@ -356,7 +376,11 @@
 
         // Repaint the strip above this frame. index.html verifies the sender.
         try {
-          window.top.postMessage({ type: 'THEME', theme: isDark ? 'dark' : 'light' }, '*');
+          window.top.postMessage({
+            type: 'THEME',
+            theme: isDark ? 'dark' : 'light',
+            colour: PAGE_COLOURS[isDark ? 'dark' : 'light']
+          }, '*');
         } catch (e) { /* opened directly rather than framed */ }
       }
 
