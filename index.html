@@ -7,17 +7,18 @@
   <!-- iOS Full-Screen Standalone App Settings -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <!-- Chrome/Android address bar. iOS standalone ignores these and paints the
-       status-bar strip with the body background instead, which is why the CSS
-       below matters more than the meta tags on iPhone. -->
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1A222C" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
   <!-- Android Full-Screen Standalone App Settings -->
   <link rel="manifest" href="manifest.json">
   <!-- Icon Configuration -->
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
+
+  <!-- One theme-color meta, rewritten by script. The media-scoped copies were
+       removed on purpose: Chrome honours the FIRST meta whose media matches, so a
+       prefers-color-scheme copy sitting earlier in the document silently beat
+       anything added later. -->
+  <meta name="theme-color" id="theme-color-meta" content="#ffffff">
 
   <style>
     * {
@@ -31,16 +32,19 @@
       overflow: hidden;
       background-color: #ffffff;
     }
-    /* The strip above the iframe on iOS standalone is this element's background.
-       It sits directly above the app's NAVBAR, so it has to match the navbar
-       surface (--surface: #1A222C), not the page background (--bg-light:
-       #0F141A). Using the page colour is what produced the visible seam. */
+    /* On iOS standalone the strip above the iframe is this element's background,
+       and it borders the app's NAVBAR, so it uses --surface (#1A222C) rather than
+       the page background (--bg-light, #0F141A). Using the page colour is what
+       produced the visible seam under the status bar.
+
+       These rules are the pre-paint guess only. Once the app reports in, the
+       colour is written as an inline style, which beats all of this. */
     @media (prefers-color-scheme: dark) {
       html, body { background-color: #1A222C; }
     }
-    /* Only ever set when STATUS_BAR.followAppTheme is on — see the script below. */
     html[data-theme="light"], html[data-theme="light"] body { background-color: #ffffff; }
-    html[data-theme="dark"], html[data-theme="dark"] body { background-color: #1A222C; }
+    html[data-theme="dark"],  html[data-theme="dark"] body  { background-color: #1A222C; }
+
     iframe {
       width: 100vw;
       height: 100dvh;
@@ -49,6 +53,67 @@
       display: block;
     }
   </style>
+
+  <script>
+    // =====================================================================
+    // STATUS BAR STRIP
+    // ---------------------------------------------------------------------
+    // The band above the app is this page's background — the one part of the
+    // screen the app cannot paint itself, because it runs on a different
+    // origin and cannot reach out of its iframe.
+    //
+    // followAppTheme = true (default)
+    //   The strip obeys the theme chosen inside the app, so the two always
+    //   match. The catch is iOS: with status-bar-style="default" the system
+    //   picks the clock and battery text colour from the PHONE's appearance
+    //   setting and ignores this page. Someone whose phone is dark but who
+    //   picks light in the app gets a white strip with white system text for
+    //   as long as that mismatch lasts. Set this to false to hand the strip
+    //   back to the phone — a readable clock, at the cost of a visible seam.
+    // =====================================================================
+    var STATUS_BAR = {
+      followAppTheme: true
+    };
+
+    var THEME_KEY = 'smt-theme';
+    var THEME_COLOURS = { light: '#ffffff', dark: '#1A222C' };
+
+    // This page and maintenance.html share an origin, so they share this store.
+    // The APP does not — it runs on script.google.com and keeps its own copy —
+    // which is why it has to tell us over postMessage, and why the answer is
+    // cached here for the next cold start.
+    function readStoredTheme() {
+      try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
+    }
+
+    function writeStoredTheme(theme) {
+      try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
+    }
+
+    function systemTheme() {
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ? 'dark' : 'light';
+    }
+
+    // Written as an inline style rather than left to the stylesheet. The cascade
+    // has too many ways to go wrong here, and this is the one thing on the page
+    // that has to be right.
+    function applyWrapperTheme(theme) {
+      var resolved = theme === 'dark' ? 'dark' : 'light';
+      var colour = THEME_COLOURS[resolved];
+
+      document.documentElement.setAttribute('data-theme', resolved);
+      document.documentElement.style.backgroundColor = colour;
+      if (document.body) document.body.style.backgroundColor = colour;
+
+      var meta = document.getElementById('theme-color-meta');
+      if (meta) meta.setAttribute('content', colour);
+    }
+
+    // Best guess before the app has had a chance to speak: whatever it told us
+    // last time, otherwise the device setting.
+    applyWrapperTheme(readStoredTheme() || systemTheme());
+  </script>
 </head>
 <body>
   <!-- Dynamic full-screen container. Hosts either the Apps Script app or, during
@@ -68,31 +133,6 @@
     // The wording of the notice is NOT here. It lives in maintenance.html;
     // edit that file to change what people read.
     // =====================================================================
-    // =====================================================================
-    // STATUS BAR STRIP (iOS standalone)
-    // ---------------------------------------------------------------------
-    // The band above the app is this page's background, and it is the only
-    // part of the screen the app itself cannot paint.
-    //
-    // followAppTheme = false (default, recommended)
-    //   The strip follows the PHONE's appearance setting. This is deliberate:
-    //   with apple-mobile-web-app-status-bar-style="default", iOS picks the
-    //   clock and battery text colour from the system setting and ignores this
-    //   page entirely. Force the strip light on a dark-mode phone and the clock
-    //   goes white-on-white; force it dark on a light phone and it goes
-    //   black-on-black. So someone who overrides the theme inside the app sees
-    //   one band that does not match — and a status bar they can still read.
-    //
-    // followAppTheme = true
-    //   The strip obeys whatever was chosen inside the app. Seamless in every
-    //   case except a deliberate override, where the status bar text may become
-    //   hard or impossible to read. Only worth it if your users never fight
-    //   their phone's own setting.
-    // =====================================================================
-    const STATUS_BAR = {
-      followAppTheme: false
-    };
-
     const MAINTENANCE = {
       enabled: true,
 
@@ -144,19 +184,14 @@
       return url;
     }
 
-    // The iframe's src is set to exactly one of these two. During maintenance the
-    // Apps Script URL is never requested at all — the app does not load behind the
-    // notice, so there is nothing to flash into view on a slow connection.
-    document.getElementById("app-frame").src = isMaintenanceActive()
-      ? buildMaintenanceUrl()
-      : baseUrl + currentParams;
-
     // Apps Script renders the web app inside a nested sandbox iframe, so the message
     // arrives from a per-deployment *.googleusercontent.com origin rather than from
     // script.google.com itself. That subdomain is not fixed, so the check matches the
-    // parent domain instead of one exact string.
+    // parent domain instead of one exact string. maintenance.html is same-origin.
     function isTrustedOrigin(origin) {
       try {
+        if (origin === window.location.origin) return true;
+
         const host = new URL(origin).hostname;
         return host === "script.google.com" ||
                host === "googleusercontent.com" ||
@@ -166,26 +201,21 @@
       }
     }
 
-    // Listen for navigation updates sent from the Apps Script iframe
+    // Listen BEFORE the iframe is given a src. The app announces its theme as the
+    // very first thing it does, and a listener attached afterwards can miss that
+    // message on a warm cache.
     window.addEventListener("message", function(event) {
       // Any page on the internet can postMessage to this window. Without an origin
       // check, an unrelated tab could rewrite the address bar shown to the user.
       if (!isTrustedOrigin(event.origin)) return;
-
       if (!event.data) return;
 
-      // The app tells us which theme it settled on. The wrapper cannot read the
-      // app's localStorage (different origin), so this message is the only way to
-      // know that someone chose dark on a light device, or the reverse.
+      // Which theme the app (or the maintenance notice) settled on. Cached so the
+      // next cold start paints the right colour before anything loads.
       if (event.data.type === "THEME") {
-        if (STATUS_BAR.followAppTheme) {
-          const theme = event.data.theme === "dark" ? "dark" : "light";
-          document.documentElement.setAttribute("data-theme", theme);
-
-          const meta = document.querySelector('meta[name="theme-color"]:not([media])') ||
-                       document.head.appendChild(Object.assign(document.createElement("meta"), { name: "theme-color" }));
-          meta.setAttribute("content", theme === "dark" ? "#1A222C" : "#ffffff");
-        }
+        const theme = event.data.theme === "dark" ? "dark" : "light";
+        writeStoredTheme(theme);
+        if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme);
         return;
       }
 
@@ -202,6 +232,16 @@
       // Update browser URL without triggering a page reload
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
+
+    // The iframe's src is set to exactly one of these two. During maintenance the
+    // Apps Script URL is never requested at all — the app does not load behind the
+    // notice, so there is nothing to flash into view on a slow connection.
+    document.getElementById("app-frame").src = isMaintenanceActive()
+      ? buildMaintenanceUrl()
+      : baseUrl + currentParams;
+
+    // <body> did not exist when the head script first ran, so paint it now
+    applyWrapperTheme(readStoredTheme() || systemTheme());
   </script>
 </body>
 </html>
