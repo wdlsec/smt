@@ -87,7 +87,10 @@
     }
 
     function writeStoredTheme(theme) {
-      try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
+      try {
+        localStorage.setItem(THEME_KEY, theme);
+        localStorage.setItem('smt-theme-base', systemTheme());
+      } catch (e) { /* private mode */ }
     }
 
     function systemTheme() {
@@ -116,9 +119,31 @@
       if (meta) meta.setAttribute('content', colour);
     }
 
-    // Best guess before the app has had a chance to speak: whatever it told us
-    // last time, otherwise the device setting.
-    applyWrapperTheme(readStoredTheme() || systemTheme());
+    // A cached choice is only trusted while the device is still set the way it was
+    // when the app reported it. Same rule the app itself uses.
+    function resolveTheme() {
+      var system = systemTheme();
+      var choice = readStoredTheme();
+      var base = null;
+      try { base = localStorage.getItem('smt-theme-base'); } catch (e) {}
+
+      return (choice && base === system) ? choice : system;
+    }
+
+    // Best guess before the app has had a chance to speak
+    applyWrapperTheme(resolveTheme());
+
+    // The app repaints itself on a device change and messages us, but that round
+    // trip is a frame or two. Repainting here as well keeps the strip in step.
+    if (window.matchMedia) {
+      var wrapperThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      var onWrapperThemeChange = function () {
+        if (STATUS_BAR.followAppTheme) applyWrapperTheme(resolveTheme());
+      };
+
+      if (wrapperThemeQuery.addEventListener) wrapperThemeQuery.addEventListener('change', onWrapperThemeChange);
+      else if (wrapperThemeQuery.addListener) wrapperThemeQuery.addListener(onWrapperThemeChange);
+    }
   </script>
 </head>
 <body>
@@ -247,7 +272,7 @@
       : baseUrl + currentParams;
 
     // <body> did not exist when the head script first ran, so paint it now
-    applyWrapperTheme(readStoredTheme() || systemTheme());
+    applyWrapperTheme(resolveTheme());
   </script>
 </body>
 </html>
