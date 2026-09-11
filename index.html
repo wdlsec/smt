@@ -14,10 +14,7 @@
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
 
-  <!-- One theme-color meta, rewritten by script. The media-scoped copies were
-       removed on purpose: Chrome honours the FIRST meta whose media matches, so a
-       prefers-color-scheme copy sitting earlier in the document silently beat
-       anything added later. -->
+  <!-- One theme-color meta, rewritten by script. -->
   <meta name="theme-color" id="theme-color-meta" content="#ffffff">
 
   <style>
@@ -32,13 +29,11 @@
       overflow: hidden;
       background-color: #ffffff;
     }
-    /* On iOS standalone the strip above the iframe is this element's background,
-       and it borders the app's NAVBAR, so it uses --surface (#1A222C) rather than
-       the page background (--bg-light, #0F141A). Using the page colour is what
-       produced the visible seam under the status bar.
-
-       These rules are the pre-paint guess only. Once the app reports in, the
-       colour is written as an inline style, which beats all of this. */
+    /**
+     * On iOS standalone the strip above the iframe is this element's background, and it borders the
+     * app's NAVBAR, so it uses --surface (#1A222C) rather than the page background (--bg-light,
+     * #0F141A).
+     */
     @media (prefers-color-scheme: dark) {
       html, body { background-color: #1A222C; }
     }
@@ -55,22 +50,15 @@
   </style>
 
   <script>
-    // =====================================================================
-    // STATUS BAR STRIP
-    // ---------------------------------------------------------------------
-    // The band above the app is this page's background — the one part of the
-    // screen the app cannot paint itself, because it runs on a different
-    // origin and cannot reach out of its iframe.
+    // ===== STATUS BAR STRIP =====
+    // The band above the app is this page's background — the one part of the screen the app cannot
+    // paint itself, because it runs on a different origin and cannot reach out of its iframe.
     //
-    // followAppTheme = true (default)
-    //   The strip obeys the theme chosen inside the app, so the two always
-    //   match. The catch is iOS: with status-bar-style="default" the system
-    //   picks the clock and battery text colour from the PHONE's appearance
-    //   setting and ignores this page. Someone whose phone is dark but who
-    //   picks light in the app gets a white strip with white system text for
-    //   as long as that mismatch lasts. Set this to false to hand the strip
-    //   back to the phone — a readable clock, at the cost of a visible seam.
-    // =====================================================================
+    // followAppTheme = true (default): the strip obeys the theme chosen inside the app, so the two
+    // always match. The catch is iOS: with status-bar-style="default" the system picks the clock and
+    // battery colour from the PHONE's appearance setting and ignores this page, so a dark phone with
+    // light chosen in the app gets white-on-white system text until that mismatch ends. Set this to
+    // false to hand the strip back to the phone — a readable clock, at the cost of a visible seam.
     var STATUS_BAR = {
       followAppTheme: true
     };
@@ -78,10 +66,6 @@
     var THEME_KEY = 'smt-theme';
     var THEME_COLOURS = { light: '#ffffff', dark: '#1A222C' };
 
-    // This page and maintenance.html share an origin, so they share this store.
-    // The APP does not — it runs on script.google.com and keeps its own copy —
-    // which is why it has to tell us over postMessage, and why the answer is
-    // cached here for the next cold start.
     function readStoredTheme() {
       try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
     }
@@ -98,14 +82,15 @@
         ? 'dark' : 'light';
     }
 
-    // Written as an inline style rather than left to the stylesheet. The cascade
-    // has too many ways to go wrong here, and this is the one thing on the page
-    // that has to be right.
-    // colour is optional. When the framed page supplies one it wins, because only
-    // that page knows which of its surfaces actually borders the strip: the app
-    // sends its navbar (--surface), the maintenance notice sends its page
-    // background (--bg-light). Guessing here is what left a visible seam above
-    // the maintenance card.
+    /**
+     * Paints the strip. Written as an inline style rather than left to the stylesheet: the cascade
+     * has too many ways to go wrong here, and this is the one thing on the page that has to be right.
+     *
+     * `colour` is optional, and when the framed page supplies one it wins — only that page knows
+     * which of its surfaces borders the strip. The app sends its navbar (--surface), the maintenance
+     * notice sends its page background, and while a modal is open the app sends the navbar already
+     * composited with the modal's dim so the strip greys out along with everything below it.
+     */
     function applyWrapperTheme(theme, colour) {
       var resolved = theme === 'dark' ? 'dark' : 'light';
 
@@ -119,8 +104,6 @@
       if (meta) meta.setAttribute('content', colour);
     }
 
-    // A cached choice is only trusted while the device is still set the way it was
-    // when the app reported it. Same rule the app itself uses.
     function resolveTheme() {
       var system = systemTheme();
       var choice = readStoredTheme();
@@ -130,11 +113,8 @@
       return (choice && base === system) ? choice : system;
     }
 
-    // Best guess before the app has had a chance to speak
     applyWrapperTheme(resolveTheme());
 
-    // The app repaints itself on a device change and messages us, but that round
-    // trip is a frame or two. Repainting here as well keeps the strip in step.
     if (window.matchMedia) {
       var wrapperThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
       var onWrapperThemeChange = function () {
@@ -147,78 +127,45 @@
   </script>
 </head>
 <body>
-  <!-- Dynamic full-screen container. Hosts either the Apps Script app or, during
-       maintenance, the local maintenance.html notice. -->
+  <!-- Dynamic full-screen container. -->
   <iframe id="app-frame" allow="geolocation; camera"></iframe>
 
   <script>
-    // =====================================================================
-    // MAINTENANCE MODE
-    // ---------------------------------------------------------------------
-    // To take the app offline:   set enabled to true, commit.
-    // To bring it back:          set enabled to false, commit.
-    //
-    // Flip the boolean rather than commenting the block out — a half-deleted
-    // comment marker breaks the whole script and takes the page down with it.
-    //
-    // The wording of the notice is NOT here. It lives in maintenance.html;
-    // edit that file to change what people read.
-    // =====================================================================
     const MAINTENANCE = {
       enabled: true,
 
-      // Append ?bypass=<this value> to the URL to load the real app while everyone
-      // else sees the notice. Useful for verifying a fix before going live again.
-      // This is convenience, not security: anyone reading the page source can find
-      // it. Change it to something only you would guess.
       bypassKey: "admin"
     };
 
-    // The notice page, relative to this file.
     const MAINTENANCE_PAGE = "maintenance.html";
 
-    // Base Google Apps Script URL
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
-    // Extract any query parameters attached to the GitHub link (e.g., "?page=form")
     const currentParams = window.location.search;
 
-    // The key that was submitted this visit, if any. The hidden panel in
-    // maintenance.html reloads this page with ?bypass=<key> attached.
     const submittedKey = new URLSearchParams(currentParams).get("bypass");
 
     function isMaintenanceActive() {
       if (!MAINTENANCE.enabled) return false;
 
-      // Bypass for whoever is doing the maintenance.
       if (MAINTENANCE.bypassKey && submittedKey === MAINTENANCE.bypassKey) return false;
 
       return true;
     }
 
-    // Builds the notice URL.
-    //
-    // "t" is a cache-buster, and it matters more than it looks. Reloading this outer
-    // page does NOT force the browser to re-fetch an iframe's contents — it happily
-    // reuses its cached copy — and GitHub Pages serves HTML with a ten-minute
-    // max-age on top of that. So after editing maintenance.html you could hard-refresh
-    // and still be shown the previous wording. A URL the cache has never seen
-    // sidesteps both layers, and costs nothing: this page is only ever requested
-    // while the app is deliberately offline.
-    //
-    // "bad" tells the notice that a key was tried and rejected, so it can reopen the
-    // panel with an error. Only the verdict crosses over — the key never leaves
-    // this file.
+    // "t" is a cache-buster and it matters more than it looks: reloading this outer page does not
+    // force a re-fetch of an iframe's contents, and GitHub Pages adds a ten-minute max-age on top, so
+    // an edited maintenance.html could stay invisible through a hard refresh. "bad" tells the notice
+    // a key was tried and rejected — only the verdict crosses over, never the key.
     function buildMaintenanceUrl() {
       let url = MAINTENANCE_PAGE + "?t=" + Date.now();
       if (submittedKey) url += "&bad=1";
       return url;
     }
 
-    // Apps Script renders the web app inside a nested sandbox iframe, so the message
-    // arrives from a per-deployment *.googleusercontent.com origin rather than from
-    // script.google.com itself. That subdomain is not fixed, so the check matches the
-    // parent domain instead of one exact string. maintenance.html is same-origin.
+    // Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a
+    // per-deployment *.googleusercontent.com origin rather than from script.google.com itself. That
+    // subdomain is not fixed, so the check matches the parent domain. maintenance.html is same-origin.
     function isTrustedOrigin(origin) {
       try {
         if (origin === window.location.origin) return true;
@@ -232,17 +179,12 @@
       }
     }
 
-    // Listen BEFORE the iframe is given a src. The app announces its theme as the
-    // very first thing it does, and a listener attached afterwards can miss that
-    // message on a warm cache.
+    // Listen BEFORE the iframe is given a src: the app announces its theme as the very first thing
+    // it does, and a listener attached afterwards can miss that message on a warm cache.
     window.addEventListener("message", function(event) {
-      // Any page on the internet can postMessage to this window. Without an origin
-      // check, an unrelated tab could rewrite the address bar shown to the user.
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
-      // Which theme the app (or the maintenance notice) settled on. Cached so the
-      // next cold start paints the right colour before anything loads.
       if (event.data.type === "THEME") {
         const theme = event.data.theme === "dark" ? "dark" : "light";
         writeStoredTheme(theme);
@@ -252,26 +194,19 @@
 
       if (event.data.type !== "UPDATE_URL") return;
 
-      // Only accept a plain query string. This is what the app sends, and it keeps a
-      // malformed or hostile value from reaching history.replaceState.
       const qs = event.data.queryString;
       if (typeof qs !== "string" || !/^\?[A-Za-z0-9=&%_.~-]*$/.test(qs)) return;
 
       const newUrl = window.location.protocol + "//" + window.location.host +
                      window.location.pathname + qs;
 
-      // Update browser URL without triggering a page reload
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
-    // The iframe's src is set to exactly one of these two. During maintenance the
-    // Apps Script URL is never requested at all — the app does not load behind the
-    // notice, so there is nothing to flash into view on a slow connection.
     document.getElementById("app-frame").src = isMaintenanceActive()
       ? buildMaintenanceUrl()
       : baseUrl + currentParams;
 
-    // <body> did not exist when the head script first ran, so paint it now
     applyWrapperTheme(resolveTheme());
   </script>
 </body>
