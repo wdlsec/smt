@@ -7,12 +7,6 @@
   <link rel="icon" type="image/png" href="icon.png">
 
   <script>
-    // Runs before the body paints so a dark-mode visitor never sees a white flash.
-    //
-    // This page is served from the same origin as index.html, so they share one
-    // localStorage. index.html caches whatever theme the app last reported there,
-    // which means the notice comes up in the theme the teacher actually chose,
-    // even though the app itself is on a different origin and is not loaded.
     (function () {
       var saved = null, base = null;
       try {
@@ -23,17 +17,12 @@
       var system = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
         ? 'dark' : 'light';
 
-      // A stored choice only stands while the device is still set the way it was
-      // when that choice was made. Same rule as Globals.html in the Apps Script
-      // project — if you change one, change the other.
       document.documentElement.setAttribute('data-theme', (saved && base === system) ? saved : system);
     })();
   </script>
 
   <style>
-    /* Token names and values match CSS_Theme.html in the Apps Script project.
-       This page cannot include that file — different origin — so the handful it
-       needs is repeated here. Change a colour there, change it here too. */
+    /** Token names and values match CSS_Theme.html in the Apps Script project. */
     :root {
       color-scheme: light;
       --bg-light: #f7fafc;
@@ -80,10 +69,11 @@
       --shadow-row: 0 2px 4px rgba(0, 0, 0, 0.45);
     }
 
-    /* Transitions are suppressed for the two frames it takes to repaint in the
-       new theme, otherwise every transitioned property animates at a slightly
-       different rate and the card smears between themes. The knob still slides,
-       because that one is the control responding to the tap. */
+    /**
+     * Transitions are suppressed for the two frames it takes to repaint in the new theme, otherwise
+     * every transitioned property animates at a slightly different rate and the card smears between
+     * themes.
+     */
     html.theme-switching *,
     html.theme-switching *::before,
     html.theme-switching *::after { transition: none !important; }
@@ -145,11 +135,11 @@
     }
     .maintenance-retry:hover { background-color: var(--primary-btn-hover); }
 
-    /* ---- Theme toggle -------------------------------------------------------
-       Same pill as the navbar in the app: the knob carries the mode currently in
-       force and covers the faint icon beneath it, so the icon still showing on
-       the other side is the one a tap switches to. Sits top-left, mirroring the
-       hidden staff key at top-right. */
+    /**
+     * ---- Theme toggle ------------------------------------------------------- Same pill as the
+     * navbar in the app: the knob carries the mode currently in force and covers the faint icon
+     * beneath it, so the icon still showing on the other side is the one a tap switches to.
+     */
     .theme-toggle {
       position: absolute;
       top: 8px;
@@ -168,9 +158,10 @@
     }
     .theme-toggle:hover { border-color: var(--border-input); }
 
-    /* Only the icon you would switch TO is shown; the one under the knob is
-       hidden rather than covered. It is given the knob's own box, mirrored to the
-       far side, so the two sit on the same centre line. */
+    /**
+     * Only the icon you would switch TO is shown; the one under the knob is hidden rather than
+     * covered.
+     */
     .theme-toggle-icon {
       position: absolute;
       top: 50%;
@@ -189,10 +180,11 @@
     html[data-theme="dark"] .theme-toggle-icon.icon-sun { display: flex; }
     html[data-theme="dark"] .theme-toggle-icon.icon-moon { display: none; }
 
-    /* Every gap is 2px on all four sides, in both positions:
-         track  58 x 28, 1px border  ->  inner box 56 x 26
-         knob   22 x 22              ->  2px top and bottom
-         offset 2px from the left    ->  travel 56 - 2 - 22 - 2 = 30px */
+    /**
+     * Every gap is 2px on all four sides, in both positions: track  58 x 28, 1px border  ->  inner box
+     * 56 x 26 knob   22 x 22              ->  2px top and bottom offset 2px from the left    ->
+     * travel 56 - 2 - 22 - 2 = 30px
+     */
     .theme-toggle-knob {
       position: absolute;
       top: 50%;
@@ -220,10 +212,10 @@
     html[data-theme="dark"] .knob-icon-moon { display: inline; }
     html[data-theme="dark"] .knob-icon-sun { display: none; }
 
-    /* ---- Hidden admin bypass ------------------------------------------------
-       A transparent hit area in the top-right corner of the card. Invisible at
-       rest, faintly visible on hover or keyboard focus so it is still reachable
-       by Tab rather than being a mouse-only secret. */
+    /**
+     * ---- Hidden admin bypass ------------------------------------------------ A transparent hit area
+     * in the top-right corner of the card.
+     */
     .admin-toggle {
       position: absolute;
       top: 6px;
@@ -314,11 +306,9 @@
   </style>
 </head>
 <body>
-  <!-- ===================================================================
-       All maintenance wording lives here. index.html only decides WHETHER
-       to load this page; it does not hold a copy of any of this text.
-       Edit the heading and paragraph below to change what people see.
-       =================================================================== -->
+  <!-- All maintenance wording lives
+       here. index.html only decides WHETHER to load this page; it does not hold a copy of any of this
+       text. -->
   <div class="maintenance-card">
 
     <!-- Theme toggle. Mirrors the one in the app's navbar. -->
@@ -358,12 +348,6 @@
 
   <script>
     (function () {
-      // ==========================================
-      // THEME
-      // ==========================================
-      // Same key and the same rules as the app, so a choice made here survives
-      // into the app and the other way round. index.html reads this store too,
-      // which is how the status-bar strip stays in step.
       var THEME_KEY = 'smt-theme';
       var THEME_BASE_KEY = 'smt-theme-base';
 
@@ -372,8 +356,6 @@
           ? 'dark' : 'light';
       }
 
-      // The chosen theme plus the device setting at the time of choosing. The
-      // override lasts only until the device setting moves.
       function storeTheme(theme) {
         try {
           localStorage.setItem(THEME_KEY, theme);
@@ -401,8 +383,6 @@
         return system;
       }
 
-      // This page has no navbar, so the strip above it borders the PAGE background.
-      // These are --bg-light from the token block above, not --surface.
       var PAGE_COLOURS = { light: '#f7fafc', dark: '#0F141A' };
 
       function applyTheme(theme) {
@@ -418,14 +398,12 @@
 
         var btn = document.getElementById('theme-toggle');
         if (btn) {
-          // The label names where a tap takes you, not where you are
           var label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
           btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
           btn.setAttribute('aria-label', label);
           btn.setAttribute('title', label);
         }
 
-        // Repaint the strip above this frame. index.html verifies the sender.
         try {
           window.top.postMessage({
             type: 'THEME',
@@ -441,11 +419,8 @@
         storeTheme(next);
       });
 
-      // The attribute is already set by the head script; this syncs the button
-      // and tells the wrapper.
       applyTheme(resolveTheme());
 
-      // Repaint the moment the device setting changes, rather than on reload
       if (window.matchMedia) {
         var themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
         var onSystemThemeChange = function () { applyTheme(resolveTheme()); };
@@ -454,17 +429,12 @@
         else if (themeQuery.addListener) themeQuery.addListener(onSystemThemeChange);
       }
 
-      // ==========================================
-      // STAFF BYPASS
-      // ==========================================
+      // ===== STAFF BYPASS =====
       var toggle = document.getElementById('admin-toggle');
       var panel  = document.getElementById('admin-panel');
       var input  = document.getElementById('admin-key');
       var errorEl = document.getElementById('admin-error');
 
-      // index.html appends "bad=1" when a bypass key was supplied but did not match.
-      // The key itself is never sent here, so this page cannot validate anything
-      // itself — it only reports back the verdict index.html already reached.
       if (new URLSearchParams(window.location.search).get('bad') === '1') {
         panel.classList.add('is-open');
         errorEl.classList.add('is-visible');
@@ -476,10 +446,6 @@
         if (opening) input.focus();
       });
 
-      // Navigates the TOP window so index.html re-runs and re-evaluates the flag.
-      // Both pages are served from the same origin, so reading window.top.location
-      // is permitted; the try/catch covers the case of this page being framed by
-      // something else entirely, where it falls back to navigating itself.
       function submitKey() {
         var key = input.value.trim();
         if (!key) { input.focus(); return; }
@@ -488,9 +454,6 @@
           var isFramed = window.top !== window.self;
           var target = isFramed ? window.top : window;
 
-          // When framed, reload the parent with the key attached. When this page was
-          // opened directly, go to index.html instead — otherwise the key would be
-          // appended to a page that does not check it.
           var url = isFramed
             ? new URL(target.location.href)
             : new URL('./', window.location.href);
@@ -512,9 +475,6 @@
         }
       });
 
-      // Reload the TOP window, not this frame. Reloading the frame would just fetch
-      // this same notice again; reloading the top re-runs index.html, which re-reads
-      // the MAINTENANCE flag and lets the app back in once it is switched off.
       document.getElementById('m-retry').addEventListener('click', function () {
         try {
           window.top.location.reload();
