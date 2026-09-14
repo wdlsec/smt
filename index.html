@@ -117,8 +117,12 @@
       var frame = document.getElementById('app-frame');
       if (frame) frame.style.backgroundColor = colour;
 
-      var meta = document.getElementById('theme-color-meta');
-      if (meta) meta.setAttribute('content', colour);
+      // Deferred: rewriting theme-color makes the browser re-evaluate its own chrome, which is work
+      // that does not need to finish before the strip itself is repainted.
+      setTimeout(function () {
+        var meta = document.getElementById('theme-color-meta');
+        if (meta) meta.setAttribute('content', colour);
+      }, 0);
     }
 
     /** @return {string} The theme to show: the app's stored choice while current, else the device's. */
