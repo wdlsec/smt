@@ -50,15 +50,8 @@
     }
 
     /**
-     * Apps Script does not serve the app directly: it serves a page of its own whose body is white
-     * and which holds the real app in a nested sandbox iframe. That inner iframe is created at the
-     * HTML default of roughly 300x150 and only stretched to fill once Apps Script's own script
-     * runs, so for the first few hundred milliseconds of a reload the app paints as a small dark
-     * rectangle in the top-left with Google's white page showing along the bottom and right.
-     *
-     * Nothing in this file can restyle that page — it is a different origin. So the frame is held
-     * transparent and the wrapper's own themed background stands in for it, which is the colour the
-     * app is about to paint anyway. revealFrame() below drops the curtain.
+     * The frame starts transparent and this page's own themed background stands in for it, which
+     * is the colour the app is about to paint anyway. See revealFrame() for why.
      */
     iframe {
       width: 100vw;
@@ -251,15 +244,21 @@
     var appWindow = null;
 
     /**
-     * Shows the frame once there is something worth showing.
+     * Drops the curtain over Apps Script's mid-layout state.
      *
-     * The app's THEME message is the trigger, since it is posted from the head of the app's own
-     * document — by then Apps Script has built and sized the sandbox, so the mid-layout state the
-     * curtain exists to hide is over. The load event is a second trigger for anything that never
-     * posts, and the timeout is the last resort: a frame that stayed hidden because a message went
-     * missing would be a blank app, which is far worse than the flash being covered.
+     * Google serves the app inside a nested sandbox iframe on a white page of its own, sized at the
+     * HTML default until its script stretches it, so an uncovered reload shows the app as a small
+     * dark rectangle top-left with white along the bottom and right. This page cannot restyle that
+     * page or measure inside it, so the app measures itself and posts APP_PAINTED once its viewport
+     * is full height (see initReloadCurtain in Globals.html).
      *
-     * Idempotent, so all three can fire.
+     * Deliberately NOT triggered by THEME, APP_READY or the frame's load event: the first two are
+     * posted while the app document is still parsing, and load belongs to Google's outer page, so
+     * any of them can arrive during the very state being hidden. The timeout is the safety net,
+     * because a frame left hidden by a lost message would be a blank app — far worse than a flash.
+     * maintenance.html is same-origin and unsandboxed, so it is shown as soon as it loads.
+     *
+     * Idempotent; every path may fire.
      */
     function revealFrame() {
       var frame = document.getElementById('app-frame');
@@ -294,10 +293,15 @@
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
+      if (event.data.type === "APP_PAINTED") {
+        appWindow = event.source;
+        revealFrame();
+        return;
+      }
+
       if (event.data.type === "THEME" || event.data.type === "APP_READY") {
         appWindow = event.source;
         sendSafeArea();
-        revealFrame();
         if (event.data.type !== "THEME") return;
 
         const theme = event.data.theme === "dark" ? "dark" : "light";
@@ -317,11 +321,12 @@
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
-    document.getElementById("app-frame").addEventListener("load", revealFrame);
-
-    document.getElementById("app-frame").src = isMaintenanceActive()
-      ? buildMaintenanceUrl()
-      : baseUrl + currentParams;
+    if (isMaintenanceActive()) {
+      document.getElementById("app-frame").addEventListener("load", revealFrame);
+      document.getElementById("app-frame").src = buildMaintenanceUrl();
+    } else {
+      document.getElementById("app-frame").src = baseUrl + currentParams;
+    }
 
     applyWrapperTheme(resolveTheme());
   </script>
