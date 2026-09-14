@@ -86,7 +86,18 @@
       try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
     }
 
+    /**
+     * Two synchronous writes, which on iOS are disk I/O. The app re-announces its theme on every
+     * foreground and on every modal open and close, so most calls would rewrite what is already
+     * there; the pair actually stored is remembered and repeats are dropped.
+     */
+    var lastWritten = null;
+
     function writeStoredTheme(theme) {
+      var pair = theme + '|' + systemTheme();
+      if (pair === lastWritten) return;
+      lastWritten = pair;
+
       try {
         localStorage.setItem(THEME_KEY, theme);
         localStorage.setItem('smt-theme-base', systemTheme());
@@ -115,10 +126,16 @@
      * @param {string} theme    'light' or 'dark'.
      * @param {string} [colour] A six-digit hex colour; anything else falls back to the theme's own.
      */
+    var lastPainted = null;
+
     function applyWrapperTheme(theme, colour) {
       var resolved = theme === 'dark' ? 'dark' : 'light';
 
       if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
+
+      // Repainting the strip in the colour it already is still dirties the iframe's backdrop, and
+      // most messages arriving here ask for exactly that.
+      if (resolved + colour === lastPainted) return;
 
       document.documentElement.setAttribute('data-theme', resolved);
       document.documentElement.style.backgroundColor = colour;
@@ -126,6 +143,11 @@
 
       var frame = document.getElementById('app-frame');
       if (frame) frame.style.backgroundColor = colour;
+
+      // Recorded only once there was a whole page to paint. The first call runs from <head>, where
+      // neither the body nor the frame exists yet, and must not suppress the repeat that follows
+      // them at the end of the body.
+      if (document.body && frame) lastPainted = resolved + colour;
 
       // Deferred: rewriting theme-color makes the browser re-evaluate its own chrome, which is work
       // that does not need to finish before the strip itself is repainted.
@@ -241,10 +263,21 @@
      * env(safe-area-inset-top) resolves to zero inside an iframe, so the app cannot read it and the
      * value is measured here from #safe-area-probe and handed over.
      */
-    function sendSafeArea() {
+    var lastInsetSent = -1;
+
+    function sendSafeArea(force) {
       if (!appWindow) return;
+
       var probe = document.getElementById('safe-area-probe');
       var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
+
+      // Reading the probe is a forced layout here, and on the other side the value lands on a
+      // custom property on :root, which invalidates the app's entire computed style. Neither is
+      // worth doing for an inset that has not moved. "force" covers a fresh app document, which
+      // starts with no --safe-top however recently the value was last sent.
+      if (inset === lastInsetSent && !force) return;
+      lastInsetSent = inset;
+
       try {
         appWindow.postMessage({ type: 'SAFE_AREA', top: inset }, '*');
       } catch (e) {
@@ -252,8 +285,10 @@
       }
     }
 
-    window.addEventListener('resize', sendSafeArea);
-    window.addEventListener('orientationchange', function () { setTimeout(sendSafeArea, 100); });
+    window.addEventListener('resize', function () { sendSafeArea(false); });
+    window.addEventListener('orientationchange', function () {
+      setTimeout(function () { sendSafeArea(true); }, 100);
+    });
 
     // Bound before the iframe is given a src. The app announces its theme as the first thing it
     // does, and a listener attached afterwards can miss that message on a warm cache.
@@ -261,14 +296,28 @@
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
-      if (event.data.type === "THEME" || event.data.type === "APP_READY") {
+      if (event.data.type === "APP_READY") {
         appWindow = event.source;
-        sendSafeArea();
-        if (event.data.type !== "THEME") return;
+        sendSafeArea(true);       // a document that has just loaded has no --safe-top yet
+        return;
+      }
 
+      if (event.data.type === "THEME") {
+        // Nothing runs before the repaint. Every frame on this page shares one main thread, so the
+        // app cannot paint its own swap until this handler returns, and anything done first lands
+        // on both. The inset used to be measured and echoed back from here, and the theme written
+        // to storage, on every message — a forced layout, two synchronous writes and a full style
+        // invalidation inside the app, all in front of the paint they were delaying.
         const theme = event.data.theme === "dark" ? "dark" : "light";
+        const firstContact = !appWindow;
+        appWindow = event.source;
+
         if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme, event.data.colour);
-        writeStoredTheme(theme);
+
+        setTimeout(function () {
+          writeStoredTheme(theme);
+          if (firstContact) sendSafeArea(true);
+        }, 0);
         return;
       }
 
