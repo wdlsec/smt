@@ -22,7 +22,7 @@
   </script>
 
   <style>
-    /** Token names and values match CSS_Theme.html in the Apps Script project. */
+    /* Token names and values match CSS_Themes.html in the Apps Script project. */
     :root {
       color-scheme: light;
       --bg-light: #f7fafc;
@@ -70,9 +70,9 @@
     }
 
     /**
-     * Transitions are suppressed for the two frames it takes to repaint in the new theme, otherwise
-     * every transitioned property animates at a slightly different rate and the card smears between
-     * themes.
+     * Transitions are suppressed for the frames it takes to repaint in the new theme, otherwise
+     * every transitioned property animates at its own rate and the card smears between themes.
+     * The knob keeps its transition, since that one is the deliberate animation.
      */
     html.theme-switching *,
     html.theme-switching *::before,
@@ -135,10 +135,10 @@
     }
     .maintenance-retry:hover { background-color: var(--primary-btn-hover); }
 
-    /**
-     * ---- Theme toggle ------------------------------------------------------- Same pill as the
-     * navbar in the app: the knob carries the mode currently in force and covers the faint icon
-     * beneath it, so the icon still showing on the other side is the one a tap switches to.
+    /* ---- Theme toggle ----
+     * The same pill as the app's navbar. The knob carries the mode currently in force and covers
+     * the icon beneath it, so the icon still showing on the other side is the one a tap switches
+     * to.
      */
     .theme-toggle {
       position: absolute;
@@ -158,10 +158,8 @@
     }
     .theme-toggle:hover { border-color: var(--border-input); }
 
-    /**
-     * Only the icon you would switch TO is shown; the one under the knob is hidden rather than
-     * covered.
-     */
+    /* Only the icon that a tap would switch to is shown; the one under the knob is hidden rather
+       than merely covered. */
     .theme-toggle-icon {
       position: absolute;
       top: 50%;
@@ -180,10 +178,10 @@
     html[data-theme="dark"] .theme-toggle-icon.icon-sun { display: flex; }
     html[data-theme="dark"] .theme-toggle-icon.icon-moon { display: none; }
 
-    /**
-     * Every gap is 2px on all four sides, in both positions: track  58 x 28, 1px border  ->  inner box
-     * 56 x 26 knob   22 x 22              ->  2px top and bottom offset 2px from the left    ->
-     * travel 56 - 2 - 22 - 2 = 30px
+    /* Knob geometry, giving a 2px gap on all four sides in both positions:
+     *   track  58 x 28 with a 1px border  ->  inner box 56 x 26
+     *   knob   22 x 22                    ->  2px above and below
+     *   offset 2px from the left          ->  travel 56 - 2 - 22 - 2 = 30px
      */
     .theme-toggle-knob {
       position: absolute;
@@ -212,10 +210,8 @@
     html[data-theme="dark"] .knob-icon-moon { display: inline; }
     html[data-theme="dark"] .knob-icon-sun { display: none; }
 
-    /**
-     * ---- Hidden admin bypass ------------------------------------------------ A transparent hit area
-     * in the top-right corner of the card.
-     */
+    /* ---- Hidden admin bypass ----
+       A transparent hit area in the top-right corner of the card. */
     .admin-toggle {
       position: absolute;
       top: 6px;
@@ -306,12 +302,11 @@
   </style>
 </head>
 <body>
-  <!-- All maintenance wording lives
-       here. index.html only decides WHETHER to load this page; it does not hold a copy of any of this
-       text. -->
+  <!-- All maintenance wording lives here. index.html only decides whether to load this page; it
+       holds no copy of any of this text. -->
   <div class="maintenance-card">
 
-    <!-- Theme toggle. Mirrors the one in the app's navbar. -->
+    <!-- Theme toggle, mirroring the one in the app's navbar -->
     <button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false"
             title="Switch to dark mode" aria-label="Switch to dark mode">
       <span class="theme-toggle-icon icon-sun" aria-hidden="true">&#9728;&#65039;</span>
@@ -322,7 +317,7 @@
       </span>
     </button>
 
-    <!-- Hidden bypass entry. Deliberately unlabelled and invisible until hovered. -->
+    <!-- Hidden bypass entry, deliberately unlabelled and invisible until hovered -->
     <button class="admin-toggle" id="admin-toggle" title="Staff access" aria-label="Staff access">&#128273;</button>
 
     <div class="maintenance-icon">&#128736;&#65039;</div>
@@ -459,7 +454,7 @@
             : new URL('./', window.location.href);
 
           url.searchParams.set('bypass', key);
-          url.searchParams.delete('bad');   // stale verdict from a previous attempt
+          url.searchParams.delete('bad');   // drop a stale verdict from a previous attempt
           target.location.replace(url.toString());
         } catch (e) {
           window.location.replace('./?bypass=' + encodeURIComponent(key));
