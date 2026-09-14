@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Student Movement Tracker</title>
   <!-- iOS standalone app -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
   <!-- Android standalone app -->
   <link rel="manifest" href="manifest.json">
@@ -38,6 +38,16 @@
     }
     html[data-theme="light"], html[data-theme="light"] body { background-color: #ffffff; }
     html[data-theme="dark"],  html[data-theme="dark"] body  { background-color: #1A222C; }
+
+    #safe-area-probe {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: env(safe-area-inset-top, 0px);
+      pointer-events: none;
+      visibility: hidden;
+    }
 
     iframe {
       width: 100vw;
@@ -150,6 +160,7 @@
 </head>
 <body>
   <!-- Full-screen container. Its src is set at the end of the script below. -->
+  <div id="safe-area-probe" aria-hidden="true"></div>
   <iframe id="app-frame" allow="geolocation; camera"></iframe>
 
   <script>
@@ -218,13 +229,43 @@
       }
     }
 
+    /**
+     * The app's own window, captured from the first message it sends. Reaching it by walking
+     * frames would depend on Apps Script's nested sandbox layout; event.source does not.
+     */
+    var appWindow = null;
+
+    /**
+     * Sends the top safe-area inset to the app.
+     *
+     * env(safe-area-inset-top) resolves to zero inside an iframe, so the app cannot read it and the
+     * value is measured here from #safe-area-probe and handed over.
+     */
+    function sendSafeArea() {
+      if (!appWindow) return;
+      var probe = document.getElementById('safe-area-probe');
+      var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
+      try {
+        appWindow.postMessage({ type: 'SAFE_AREA', top: inset }, '*');
+      } catch (e) {
+        console.debug('sendSafeArea: app not reachable.', e);
+      }
+    }
+
+    window.addEventListener('resize', sendSafeArea);
+    window.addEventListener('orientationchange', function () { setTimeout(sendSafeArea, 100); });
+
     // Bound before the iframe is given a src. The app announces its theme as the first thing it
     // does, and a listener attached afterwards can miss that message on a warm cache.
     window.addEventListener("message", function(event) {
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
-      if (event.data.type === "THEME") {
+      if (event.data.type === "THEME" || event.data.type === "APP_READY") {
+        appWindow = event.source;
+        sendSafeArea();
+        if (event.data.type !== "THEME") return;
+
         const theme = event.data.theme === "dark" ? "dark" : "light";
         if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme, event.data.colour);
         writeStoredTheme(theme);
