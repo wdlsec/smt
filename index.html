@@ -75,24 +75,21 @@
      * light chosen in the app shows white-on-white system text until the mismatch ends. Setting it
      * to false hands the strip back to the phone, giving a readable clock at the cost of a seam.
      *
-     * bandColour is what actually fixed the lag in the installed app, and it is worth being clear
-     * about why, because the two surfaces are lit by completely different mechanisms:
+     * bandColour pins the band to one colour that reads correctly in both themes, so it never has
+     * to change and has no crossfade to lag behind. It is applied to both surfaces a browser might
+     * be reading: this page's background and the theme-color meta. Which of the two fills the band
+     * in an installed iOS app is not documented, so neither is left free to move.
      *
-     *   - In an ordinary Safari tab, the band at the top is Safari's own chrome, tinted from the
-     *     theme-color meta. That one follows the app and is seamless now that the meta is written
-     *     synchronously.
-     *   - In the installed app, iOS reserves the safe-area inset and fills it from this page's
-     *     background. There is no meta involved, and iOS crossfades that fill on its own schedule,
-     *     which is the pale band left sitting above an already-dark app. Nothing this page does
-     *     from JavaScript can make that crossfade finish sooner.
+     * #0054B4 is --primary from CSS_Themes, which is also what the navbar paints behind the status
+     * bar wherever the app is drawn under it, so the two agree. iOS picks white system text over it
+     * in both themes. Set bandColour to null to go back to a band that follows the theme.
      *
-     * So the band is pinned instead. A colour that reads correctly in both themes never has to
-     * change, and a fill that never changes has no crossfade to lag behind. #0054B4 is --primary
-     * from CSS_Themes, which is also what the navbar already paints behind the status bar wherever
-     * the app is drawn under it, so the two agree. iOS picks white system text over it in both
-     * themes.
-     *
-     * Set bandColour to null to go back to a band that follows the theme.
+     * TO FIND OUT WHAT ACTUALLY PAINTS THE BAND: set bandColour to '#FF00FF' and reload. A magenta
+     * band means this page controls it and pinning works; a band that still goes pale-then-dark on
+     * a theme change means the colour is coming from somewhere else entirely — most likely the app
+     * frame's own document rather than this wrapper — and no change here will ever fix it.
+     * Remember that GitHub Pages serves this file with a ten-minute max-age, so give an edit time
+     * to land, or remove the app from the home screen and re-add it.
      */
     var STATUS_BAR = {
       followAppTheme: true,
@@ -153,28 +150,26 @@
 
       if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
 
-      // What fills this page's own background, which in the installed app is what iOS reserves and
-      // crossfades. Pinned by default, so a theme change leaves it untouched and there is nothing
-      // for iOS to animate.
+      // Both surfaces that iOS could plausibly be reading are pinned together. Which of the two
+      // actually fills the band in the installed app is not documented and not something this code
+      // can detect, so rather than guess, neither is left free to change. See the note on
+      // STATUS_BAR.bandColour for how to find out which one it was.
       var band = /^#[0-9a-fA-F]{6}$/.test(STATUS_BAR.bandColour || '')
         ? STATUS_BAR.bandColour
         : colour;
 
       // Most messages arriving here ask for what is already on screen, and repainting still dirties
-      // the iframe's backdrop and re-triggers Safari's tint crossfade.
+      // the iframe's backdrop and re-triggers the browser's tint crossfade.
       if (resolved + colour + band === lastPainted) return;
 
-      // First, and synchronously. In an ordinary Safari tab the band at the top of the screen is
-      // Safari's own chrome rather than anything this page paints, and its tint is read from this
-      // meta. Safari crossfades that tint over roughly a quarter of a second, which makes it the
-      // slowest surface involved in a theme change and the one that needs the earliest start. This
-      // write used to sit in a setTimeout, on the reasoning that re-evaluating browser chrome need
-      // not finish before the strip repaints — true, but it also meant the tint was not even
-      // requested until after everything else, so the dark band stayed above an already-light app.
-      // It stays on the app's own colour rather than the pinned one: Safari's chrome sits outside
-      // the app and looks right matching it, and iOS ignores this meta in the installed app.
+      // Written synchronously, and first. In an ordinary Safari tab the band at the top of the
+      // screen is Safari's own chrome rather than anything this page paints, and its tint is read
+      // from this meta, crossfaded over roughly a quarter of a second — the slowest surface in a
+      // theme change and the one needing the earliest start. This write used to sit in a setTimeout
+      // on the reasoning that re-evaluating browser chrome need not finish before the strip
+      // repaints; true, but it meant the tint was not even requested until after everything else.
       var meta = document.getElementById('theme-color-meta');
-      if (meta) meta.setAttribute('content', colour);
+      if (meta) meta.setAttribute('content', band);
 
       document.documentElement.setAttribute('data-theme', resolved);
       document.documentElement.style.backgroundColor = band;
