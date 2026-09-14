@@ -133,9 +133,19 @@
 
       if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
 
-      // Repainting the strip in the colour it already is still dirties the iframe's backdrop, and
-      // most messages arriving here ask for exactly that.
+      // Most messages arriving here ask for the colour already on screen, and repainting in it
+      // still dirties the iframe's backdrop and re-triggers Safari's tint crossfade.
       if (resolved + colour === lastPainted) return;
+
+      // First, and synchronously. In an ordinary Safari tab the band at the top of the screen is
+      // Safari's own chrome rather than anything this page paints, and its tint is read from this
+      // meta. Safari crossfades that tint over roughly a quarter of a second, which makes it the
+      // slowest surface involved in a theme change and the one that needs the earliest start. This
+      // write used to sit in a setTimeout, on the reasoning that re-evaluating browser chrome need
+      // not finish before the strip repaints — true, but it also meant the tint was not even
+      // requested until after everything else, so the dark band stayed above an already-light app.
+      var meta = document.getElementById('theme-color-meta');
+      if (meta) meta.setAttribute('content', colour);
 
       document.documentElement.setAttribute('data-theme', resolved);
       document.documentElement.style.backgroundColor = colour;
@@ -148,13 +158,6 @@
       // neither the body nor the frame exists yet, and must not suppress the repeat that follows
       // them at the end of the body.
       if (document.body && frame) lastPainted = resolved + colour;
-
-      // Deferred: rewriting theme-color makes the browser re-evaluate its own chrome, which is work
-      // that does not need to finish before the strip itself is repainted.
-      setTimeout(function () {
-        var meta = document.getElementById('theme-color-meta');
-        if (meta) meta.setAttribute('content', colour);
-      }, 0);
     }
 
     /** @return {string} The theme to show: the app's stored choice while current, else the device's. */
