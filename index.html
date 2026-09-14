@@ -50,6 +50,11 @@
       visibility: hidden;
     }
 
+    /**
+     * The frame starts transparent, so what shows through during a load is the colour
+     * applyWrapperTheme has already written onto this page rather than Google's half-built page.
+     * See revealFrame() for what that is hiding and when the curtain lifts.
+     */
     iframe {
       width: 100vw;
       height: 100vh;
@@ -60,7 +65,11 @@
       border: none;
       display: block;
       background-color: inherit;
+      opacity: 0;
+      transition: opacity 0.15s ease;
     }
+
+    iframe.is-ready { opacity: 1; }
   </style>
 
   <script>
@@ -290,6 +299,31 @@
     var appWindow = null;
 
     /**
+     * Lifts the curtain once the app is full size and worth looking at.
+     *
+     * Apps Script does not serve the app directly. It serves a white-bodied page of its own holding
+     * the app in a nested sandbox iframe, created at the HTML default of roughly 300x150 and only
+     * stretched to fill once Apps Script's own script runs. Until then the app paints as a small
+     * rectangle in the top-left corner with white along the bottom and right — the flash on reload.
+     * This page cannot restyle that page or measure inside it, both being another origin, so the
+     * app measures its own viewport and posts APP_PAINTED when it is real (initReloadCurtain in
+     * Globals.html).
+     *
+     * Deliberately not triggered by THEME, APP_READY or the frame's load event: the first two are
+     * posted while the app document is still parsing, and load belongs to Google's outer page, so
+     * any of the three can arrive during the very state being hidden. The timeout is the safety
+     * net — a frame left hidden by a lost message is a blank app, far worse than a flash.
+     *
+     * Idempotent; every path may fire.
+     */
+    function revealFrame() {
+      var frame = document.getElementById('app-frame');
+      if (frame) frame.classList.add('is-ready');
+    }
+
+    setTimeout(revealFrame, 4000);
+
+    /**
      * Sends the top safe-area inset to the app.
      *
      * env(safe-area-inset-top) resolves to zero inside an iframe, so the app cannot read it and the
@@ -328,6 +362,12 @@
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
+      if (event.data.type === "APP_PAINTED") {
+        appWindow = event.source;
+        revealFrame();
+        return;
+      }
+
       if (event.data.type === "APP_READY") {
         appWindow = event.source;
         sendSafeArea(true);       // a document that has just loaded has no --safe-top yet
@@ -364,9 +404,14 @@
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
-    document.getElementById("app-frame").src = isMaintenanceActive()
-      ? buildMaintenanceUrl()
-      : baseUrl + currentParams;
+    // maintenance.html is same-origin and unsandboxed, so there is no mid-layout state to hide and
+    // nothing posting APP_PAINTED: it is shown the moment it loads.
+    if (isMaintenanceActive()) {
+      document.getElementById("app-frame").addEventListener("load", revealFrame);
+      document.getElementById("app-frame").src = buildMaintenanceUrl();
+    } else {
+      document.getElementById("app-frame").src = baseUrl + currentParams;
+    }
 
     applyWrapperTheme(resolveTheme());
   </script>
