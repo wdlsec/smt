@@ -30,8 +30,9 @@
       background-color: #ffffff;
     }
     /**
-     * On iOS standalone, the strip above the iframe is this element's background. It borders the
-     * app's navbar, so it tracks --surface (#1A222C) rather than the page background --bg-light.
+     * Only a fallback for the frames before the head script runs. From then on the background is an
+     * inline style written by applyWrapperTheme, which wins over all of this — including when the
+     * band is pinned and no longer tracks the theme at all.
      */
     @media (prefers-color-scheme: dark) {
       html, body { background-color: #1A222C; }
@@ -68,15 +69,34 @@
      * The band above the app is this page's background: the one part of the screen the app cannot
      * paint itself, since it runs on a different origin and cannot reach out of its iframe.
      *
-     * followAppTheme (the default) makes the strip obey the theme chosen inside the app, so the two
-     * always match. The trade-off is on iOS, where status-bar-style="default" makes the system take
-     * the clock and battery colour from the phone's own appearance setting and ignore this page: a
-     * dark phone with light chosen in the app shows white-on-white system text until the mismatch
-     * ends. Setting it to false hands the strip back to the phone, giving a readable clock at the
-     * cost of a visible seam.
+     * followAppTheme makes the strip obey the theme chosen inside the app, so the two always match.
+     * The trade-off is on iOS, where status-bar-style="default" makes the system take the clock and
+     * battery colour from the phone's own appearance setting and ignore this page: a dark phone with
+     * light chosen in the app shows white-on-white system text until the mismatch ends. Setting it
+     * to false hands the strip back to the phone, giving a readable clock at the cost of a seam.
+     *
+     * bandColour is what actually fixed the lag in the installed app, and it is worth being clear
+     * about why, because the two surfaces are lit by completely different mechanisms:
+     *
+     *   - In an ordinary Safari tab, the band at the top is Safari's own chrome, tinted from the
+     *     theme-color meta. That one follows the app and is seamless now that the meta is written
+     *     synchronously.
+     *   - In the installed app, iOS reserves the safe-area inset and fills it from this page's
+     *     background. There is no meta involved, and iOS crossfades that fill on its own schedule,
+     *     which is the pale band left sitting above an already-dark app. Nothing this page does
+     *     from JavaScript can make that crossfade finish sooner.
+     *
+     * So the band is pinned instead. A colour that reads correctly in both themes never has to
+     * change, and a fill that never changes has no crossfade to lag behind. #0054B4 is --primary
+     * from CSS_Themes, which is also what the navbar already paints behind the status bar wherever
+     * the app is drawn under it, so the two agree. iOS picks white system text over it in both
+     * themes.
+     *
+     * Set bandColour to null to go back to a band that follows the theme.
      */
     var STATUS_BAR = {
-      followAppTheme: true
+      followAppTheme: true,
+      bandColour: '#0054B4'
     };
 
     var THEME_KEY = 'smt-theme';
@@ -133,9 +153,16 @@
 
       if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
 
-      // Most messages arriving here ask for the colour already on screen, and repainting in it
-      // still dirties the iframe's backdrop and re-triggers Safari's tint crossfade.
-      if (resolved + colour === lastPainted) return;
+      // What fills this page's own background, which in the installed app is what iOS reserves and
+      // crossfades. Pinned by default, so a theme change leaves it untouched and there is nothing
+      // for iOS to animate.
+      var band = /^#[0-9a-fA-F]{6}$/.test(STATUS_BAR.bandColour || '')
+        ? STATUS_BAR.bandColour
+        : colour;
+
+      // Most messages arriving here ask for what is already on screen, and repainting still dirties
+      // the iframe's backdrop and re-triggers Safari's tint crossfade.
+      if (resolved + colour + band === lastPainted) return;
 
       // First, and synchronously. In an ordinary Safari tab the band at the top of the screen is
       // Safari's own chrome rather than anything this page paints, and its tint is read from this
@@ -144,20 +171,25 @@
       // write used to sit in a setTimeout, on the reasoning that re-evaluating browser chrome need
       // not finish before the strip repaints — true, but it also meant the tint was not even
       // requested until after everything else, so the dark band stayed above an already-light app.
+      // It stays on the app's own colour rather than the pinned one: Safari's chrome sits outside
+      // the app and looks right matching it, and iOS ignores this meta in the installed app.
       var meta = document.getElementById('theme-color-meta');
       if (meta) meta.setAttribute('content', colour);
 
       document.documentElement.setAttribute('data-theme', resolved);
-      document.documentElement.style.backgroundColor = colour;
-      if (document.body) document.body.style.backgroundColor = colour;
+      document.documentElement.style.backgroundColor = band;
+      if (document.body) document.body.style.backgroundColor = band;
 
+      // The frame keeps the app's own colour, not the band's. It is only ever visible in the frames
+      // before the app's document has painted, and the point of filling it is that those frames
+      // look like the app rather than like whatever is behind it.
       var frame = document.getElementById('app-frame');
       if (frame) frame.style.backgroundColor = colour;
 
       // Recorded only once there was a whole page to paint. The first call runs from <head>, where
       // neither the body nor the frame exists yet, and must not suppress the repeat that follows
       // them at the end of the body.
-      if (document.body && frame) lastPainted = resolved + colour;
+      if (document.body && frame) lastPainted = resolved + colour + band;
     }
 
     /** @return {string} The theme to show: the app's stored choice while current, else the device's. */
