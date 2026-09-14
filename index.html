@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Student Movement Tracker</title>
-  <!-- iOS Full-Screen Standalone App Settings -->
+  <!-- iOS standalone app -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
-  <!-- Android Full-Screen Standalone App Settings -->
+  <!-- Android standalone app -->
   <link rel="manifest" href="manifest.json">
-  <!-- Icon Configuration -->
+  <!-- Home-screen icon -->
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
 
-  <!-- One theme-color meta, rewritten by script. -->
+  <!-- A single theme-color meta, rewritten at runtime by applyWrapperTheme(). -->
   <meta name="theme-color" id="theme-color-meta" content="#ffffff">
 
   <style>
@@ -30,9 +30,8 @@
       background-color: #ffffff;
     }
     /**
-     * On iOS standalone the strip above the iframe is this element's background, and it borders the
-     * app's NAVBAR, so it uses --surface (#1A222C) rather than the page background (--bg-light,
-     * #0F141A).
+     * On iOS standalone, the strip above the iframe is this element's background. It borders the
+     * app's navbar, so it tracks --surface (#1A222C) rather than the page background --bg-light.
      */
     @media (prefers-color-scheme: dark) {
       html, body { background-color: #1A222C; }
@@ -42,23 +41,30 @@
 
     iframe {
       width: 100vw;
+      height: 100vh;
       height: 100dvh;
       position: fixed;
+      top: 0;
+      left: 0;
       border: none;
       display: block;
+      background-color: inherit;
     }
   </style>
 
   <script>
     // ===== STATUS BAR STRIP =====
-    // The band above the app is this page's background — the one part of the screen the app cannot
-    // paint itself, because it runs on a different origin and cannot reach out of its iframe.
-    //
-    // followAppTheme = true (default): the strip obeys the theme chosen inside the app, so the two
-    // always match. The catch is iOS: with status-bar-style="default" the system picks the clock and
-    // battery colour from the PHONE's appearance setting and ignores this page, so a dark phone with
-    // light chosen in the app gets white-on-white system text until that mismatch ends. Set this to
-    // false to hand the strip back to the phone — a readable clock, at the cost of a visible seam.
+    /**
+     * The band above the app is this page's background: the one part of the screen the app cannot
+     * paint itself, since it runs on a different origin and cannot reach out of its iframe.
+     *
+     * followAppTheme (the default) makes the strip obey the theme chosen inside the app, so the two
+     * always match. The trade-off is on iOS, where status-bar-style="default" makes the system take
+     * the clock and battery colour from the phone's own appearance setting and ignore this page: a
+     * dark phone with light chosen in the app shows white-on-white system text until the mismatch
+     * ends. Setting it to false hands the strip back to the phone, giving a readable clock at the
+     * cost of a visible seam.
+     */
     var STATUS_BAR = {
       followAppTheme: true
     };
@@ -74,7 +80,7 @@
       try {
         localStorage.setItem(THEME_KEY, theme);
         localStorage.setItem('smt-theme-base', systemTheme());
-      } catch (e) { /* private mode */ }
+      } catch (e) { /* storage blocked; the choice simply is not remembered */ }
     }
 
     function systemTheme() {
@@ -83,13 +89,21 @@
     }
 
     /**
-     * Paints the strip. Written as an inline style rather than left to the stylesheet: the cascade
-     * has too many ways to go wrong here, and this is the one thing on the page that has to be right.
+     * Paints the strip. Written as an inline style rather than left to the stylesheet, since the
+     * cascade has too many ways to go wrong and this is the one thing on the page that must be
+     * right.
      *
-     * `colour` is optional, and when the framed page supplies one it wins — only that page knows
-     * which of its surfaces borders the strip. The app sends its navbar (--surface), the maintenance
-     * notice sends its page background, and while a modal is open the app sends the navbar already
-     * composited with the modal's dim so the strip greys out along with everything below it.
+     * When the framed page supplies a colour it wins, because only that page knows which of its
+     * surfaces borders the strip. The app sends its navbar (--surface), the maintenance notice
+     * sends its page background, and while a modal is open the app sends the navbar already
+     * composited with the modal's dim, so the strip greys out along with everything below it.
+     *
+     * The frame is painted along with the page. An iframe whose document has not painted yet is
+     * transparent, so without this the wrapper's own colour would show through for the first frames
+     * of a load, which is the white band seen on reload.
+     *
+     * @param {string} theme    'light' or 'dark'.
+     * @param {string} [colour] A six-digit hex colour; anything else falls back to the theme's own.
      */
     function applyWrapperTheme(theme, colour) {
       var resolved = theme === 'dark' ? 'dark' : 'light';
@@ -100,10 +114,14 @@
       document.documentElement.style.backgroundColor = colour;
       if (document.body) document.body.style.backgroundColor = colour;
 
+      var frame = document.getElementById('app-frame');
+      if (frame) frame.style.backgroundColor = colour;
+
       var meta = document.getElementById('theme-color-meta');
       if (meta) meta.setAttribute('content', colour);
     }
 
+    /** @return {string} The theme to show: the app's stored choice while current, else the device's. */
     function resolveTheme() {
       var system = systemTheme();
       var choice = readStoredTheme();
@@ -127,12 +145,16 @@
   </script>
 </head>
 <body>
-  <!-- Dynamic full-screen container. -->
+  <!-- Full-screen container. Its src is set at the end of the script below. -->
   <iframe id="app-frame" allow="geolocation; camera"></iframe>
 
   <script>
+    /**
+     * Maintenance switch. While enabled, every visitor is sent to MAINTENANCE_PAGE unless they
+     * arrive with ?bypass=<bypassKey>.
+     */
     const MAINTENANCE = {
-      enabled: false,
+      enabled: true,
 
       bypassKey: "admin"
     };
@@ -145,6 +167,7 @@
 
     const submittedKey = new URLSearchParams(currentParams).get("bypass");
 
+    /** @return {boolean} Whether this visitor should see the maintenance notice. */
     function isMaintenanceActive() {
       if (!MAINTENANCE.enabled) return false;
 
@@ -153,19 +176,31 @@
       return true;
     }
 
-    // "t" is a cache-buster and it matters more than it looks: reloading this outer page does not
-    // force a re-fetch of an iframe's contents, and GitHub Pages adds a ten-minute max-age on top, so
-    // an edited maintenance.html could stay invisible through a hard refresh. "bad" tells the notice
-    // a key was tried and rejected — only the verdict crosses over, never the key.
+    /**
+     * Builds the maintenance page URL.
+     *
+     * "t" is a cache-buster. Reloading this outer page does not force a re-fetch of an iframe's
+     * contents, and GitHub Pages adds a ten-minute max-age on top, so an edited maintenance.html
+     * could otherwise stay invisible through a hard refresh. "bad" tells the notice that a key was
+     * tried and rejected; only the verdict crosses over, never the key itself.
+     *
+     * @return {string}
+     */
     function buildMaintenanceUrl() {
       let url = MAINTENANCE_PAGE + "?t=" + Date.now();
       if (submittedKey) url += "&bad=1";
       return url;
     }
 
-    // Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a
-    // per-deployment *.googleusercontent.com origin rather than from script.google.com itself. That
-    // subdomain is not fixed, so the check matches the parent domain. maintenance.html is same-origin.
+    /**
+     * Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a
+     * per-deployment *.googleusercontent.com origin rather than from script.google.com itself.
+     * That subdomain is not fixed, so the check matches the parent domain. maintenance.html is
+     * same-origin.
+     *
+     * @param {string} origin
+     * @return {boolean}
+     */
     function isTrustedOrigin(origin) {
       try {
         if (origin === window.location.origin) return true;
@@ -179,8 +214,8 @@
       }
     }
 
-    // Listen BEFORE the iframe is given a src: the app announces its theme as the very first thing
-    // it does, and a listener attached afterwards can miss that message on a warm cache.
+    // Bound before the iframe is given a src. The app announces its theme as the first thing it
+    // does, and a listener attached afterwards can miss that message on a warm cache.
     window.addEventListener("message", function(event) {
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
