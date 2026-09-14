@@ -222,8 +222,8 @@
 
       if (event.data.type === "THEME") {
         const theme = event.data.theme === "dark" ? "dark" : "light";
-        writeStoredTheme(theme);
         if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme, event.data.colour);
+        writeStoredTheme(theme);
         return;
       }
 
