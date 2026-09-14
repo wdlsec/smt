@@ -80,9 +80,11 @@
      * be reading: this page's background and the theme-color meta. Which of the two fills the band
      * in an installed iOS app is not documented, so neither is left free to move.
      *
-     * #0054B4 is --primary from CSS_Themes, which is also what the navbar paints behind the status
-     * bar wherever the app is drawn under it, so the two agree. iOS picks white system text over it
-     * in both themes. Set bandColour to null to go back to a band that follows the theme.
+     * #003380 is --primary-dark from CSS_Themes, mirrored there as the --band token, which is what
+     * the navbar paints behind the status bar wherever the app is drawn under it. The two must hold
+     * the same hex: whether iOS reserves the strip or lets the app draw under it, the colour is
+     * then identical either way. Change both together. iOS picks white system text over it in both
+     * themes. Set bandColour to null to go back to a band that follows the theme.
      *
      * TO FIND OUT WHAT ACTUALLY PAINTS THE BAND: set bandColour to '#FF00FF' and reload. A magenta
      * band means this page controls it and pinning works; a band that still goes pale-then-dark on
@@ -93,7 +95,7 @@
      */
     var STATUS_BAR = {
       followAppTheme: true,
-      bandColour: '#0054B4'
+      bandColour: '#003380'
     };
 
     var THEME_KEY = 'smt-theme';
