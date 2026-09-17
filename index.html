@@ -27,6 +27,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
+      overscroll-behavior: none;   /* iOS can still bounce this page, and the whole frame with it */
       background-color: #ffffff;
     }
     /**
@@ -143,8 +144,8 @@
      * right.
      *
      * When the framed page supplies a colour it wins, because only that page knows which of its
-     * surfaces borders the strip. The app sends its navbar (--surface), the maintenance notice
-     * sends its page background, and while a modal is open the app sends the navbar already
+     * surfaces borders the strip. The app sends its navbar (--surface), the maintenance notice (now
+     * served by Apps Script too) sends its page background, and while a modal is open the app sends the navbar already
      * composited with the modal's dim, so the strip greys out along with everything below it.
      *
      * The frame is painted along with the page. An iframe whose document has not painted yet is
@@ -228,53 +229,73 @@
 
   <script>
     /**
-     * Maintenance switch. While enabled, every visitor is sent to MAINTENANCE_PAGE unless they
-     * arrive with ?bypass=<bypassKey>.
+     * Maintenance mode, the bypass key and the "official link only" check all live in Apps Script
+     * now (the Maintenance tab and doGet). This page always loads the app and carries two things the
+     * app cannot keep itself, both added to the frame's address only, never the visible one:
+     *
+     *   embed=1         tells doGet the request came through this page.
+     *   access=<token>  this tab's staff bypass, held in sessionStorage. It survives a refresh and is
+     *                   gone when the tab or home-screen app is closed.
      */
-    const MAINTENANCE = {
-      enabled: false,
-
-      bypassKey: "admin"
-    };
-
-    const MAINTENANCE_PAGE = "maintenance.html";
-
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
-    const currentParams = window.location.search;
+    const ACCESS_KEY = "smt-access";
+    const HIDDEN_PARAMS = ["embed", "access", "bypass"];   // bypass: left over from old links
 
-    const submittedKey = new URLSearchParams(currentParams).get("bypass");
+    // The in-memory copy covers browsers that refuse sessionStorage; it lasts until this page reloads.
+    var memoryAccess = null;
 
-    /** @return {boolean} Whether this visitor should see the maintenance notice. */
-    function isMaintenanceActive() {
-      if (!MAINTENANCE.enabled) return false;
+    function readAccess() {
+      try { return sessionStorage.getItem(ACCESS_KEY) || memoryAccess; } catch (e) { return memoryAccess; }
+    }
 
-      if (MAINTENANCE.bypassKey && submittedKey === MAINTENANCE.bypassKey) return false;
+    function writeAccess(token) {
+      memoryAccess = token;
+      try { sessionStorage.setItem(ACCESS_KEY, token); } catch (e) { /* memory copy only */ }
+    }
 
-      return true;
+    function clearAccess() {
+      memoryAccess = null;
+      try { sessionStorage.removeItem(ACCESS_KEY); } catch (e) { /* nothing stored */ }
     }
 
     /**
-     * Builds the maintenance page URL.
+     * The address bar's own parameters (page, tab, prefills) with the hidden ones stripped, so an old
+     * ?bypass= bookmark neither shows nor does anything.
      *
-     * "t" is a cache-buster. Reloading this outer page does not force a re-fetch of an iframe's
-     * contents, and GitHub Pages adds a ten-minute max-age on top, so an edited maintenance.html
-     * could otherwise stay invisible through a hard refresh. "bad" tells the notice that a key was
-     * tried and rejected; only the verdict crosses over, never the key itself.
-     *
-     * @return {string}
+     * @return {URLSearchParams}
      */
-    function buildMaintenanceUrl() {
-      let url = MAINTENANCE_PAGE + "?t=" + Date.now();
-      if (submittedKey) url += "&bad=1";
-      return url;
+    function visibleParams() {
+      const params = new URLSearchParams(window.location.search);
+      let changed = false;
+
+      HIDDEN_PARAMS.forEach(function (name) {
+        if (params.has(name)) { params.delete(name); changed = true; }
+      });
+
+      if (changed) {
+        const qs = params.toString();
+        window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+      }
+      return params;
+    }
+
+    /** @return {string} The frame address: the visible parameters plus embed and any bypass token. */
+    function buildAppUrl() {
+      const params = visibleParams();
+      params.set("embed", "1");
+
+      const token = readAccess();
+      if (token) params.set("access", token);
+
+      return baseUrl + "?" + params.toString();
     }
 
     /**
      * Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a
      * per-deployment *.googleusercontent.com origin rather than from script.google.com itself.
-     * That subdomain is not fixed, so the check matches the parent domain. maintenance.html is
-     * same-origin.
+     * That subdomain is not fixed, so the check matches the parent domain. The maintenance notice is
+     * served the same way as the app.
      *
      * @param {string} origin
      * @return {boolean}
@@ -307,7 +328,7 @@
      * rectangle in the top-left corner with white along the bottom and right — the flash on reload.
      * This page cannot restyle that page or measure inside it, both being another origin, so the
      * app measures its own viewport and posts APP_PAINTED when it is real (initReloadCurtain in
-     * Globals.html).
+     * Wrapper_Bridge.html).
      *
      * Deliberately not triggered by THEME, APP_READY or the frame's load event: the first two are
      * posted while the app document is still parsing, and load belongs to Google's outer page, so
@@ -321,7 +342,61 @@
       if (frame) frame.classList.add('is-ready');
     }
 
-    setTimeout(revealFrame, 4000);
+    /**
+     * Device details for the lockout email. Measured here because this page runs first-party: the
+     * sandboxed app cannot see home-screen mode, and Chrome only reveals OS version and phone model
+     * to the top-level page. Sent to the app whenever it announces itself.
+     */
+    var deviceInfo = (function () {
+      var standalone = window.navigator.standalone === true ||
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      return {
+        display: standalone ? 'Home-screen app' : 'Browser tab',
+        screen: window.screen ? window.screen.width + ' x ' + window.screen.height : '',
+        viewport: window.innerWidth + ' x ' + window.innerHeight
+      };
+    })();
+
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      navigator.userAgentData.getHighEntropyValues(['platformVersion', 'model', 'fullVersionList'])
+        .then(function (v) {
+          if (v.platformVersion) deviceInfo.platformVersion = v.platformVersion;
+          if (v.model) deviceInfo.model = v.model;
+          if (v.fullVersionList) {
+            deviceInfo.browser = v.fullVersionList
+              .filter(function (b) { return !/not.?a.?brand/i.test(b.brand); })
+              .map(function (b) { return b.brand + ' ' + b.version; }).join(', ');
+          }
+          sendDeviceInfo();
+        })
+        .catch(function () { /* the basic details still go */ });
+    }
+
+    function sendDeviceInfo() {
+      if (!appWindow) return;
+      try {
+        appWindow.postMessage({ type: 'DEVICE_INFO', info: deviceInfo }, '*');
+      } catch (e) { /* frame gone */ }
+    }
+
+    /**
+     * (Re)loads the frame. The curtain drops first so Google's half-built page is hidden again, and
+     * everything learned about the previous document is forgotten.
+     */
+    var curtainTimer = null;
+
+    function loadApp() {
+      var frame = document.getElementById('app-frame');
+      frame.classList.remove('is-ready');
+
+      appWindow = null;
+      lastInsetSent = -1;
+
+      clearTimeout(curtainTimer);
+      curtainTimer = setTimeout(revealFrame, 4000);
+
+      frame.src = buildAppUrl();
+    }
 
     /**
      * Sends the top safe-area inset to the app.
@@ -371,6 +446,34 @@
       if (event.data.type === "APP_READY") {
         appWindow = event.source;
         sendSafeArea(true);       // a document that has just loaded has no --safe-top yet
+        sendDeviceInfo();
+        return;
+      }
+
+      // The page asking whether this really is its wrapper (Firefox has no ancestorOrigins).
+      if (event.data.type === "WRAPPER_PING") {
+        try {
+          event.source.postMessage({ type: "WRAPPER_PONG", nonce: event.data.nonce }, event.origin);
+        } catch (e) { /* frame gone */ }
+        return;
+      }
+
+      // A correct key on the maintenance notice. The token is only ever kept for this session.
+      if (event.data.type === "ACCESS_GRANTED") {
+        if (!/^[a-f0-9]{64}$/.test(event.data.token || "")) return;
+        writeAccess(event.data.token);
+        if (event.data.reload) loadApp();
+        return;
+      }
+
+      if (event.data.type === "ACCESS_REVOKED") {
+        clearAccess();
+        return;
+      }
+
+      // Maintenance switched, Try Again, or the notice seeing the tracker go live.
+      if (event.data.type === "RELOAD") {
+        loadApp();
         return;
       }
 
@@ -404,14 +507,7 @@
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
-    // maintenance.html is same-origin and unsandboxed, so there is no mid-layout state to hide and
-    // nothing posting APP_PAINTED: it is shown the moment it loads.
-    if (isMaintenanceActive()) {
-      document.getElementById("app-frame").addEventListener("load", revealFrame);
-      document.getElementById("app-frame").src = buildMaintenanceUrl();
-    } else {
-      document.getElementById("app-frame").src = baseUrl + currentParams;
-    }
+    loadApp();
 
     applyWrapperTheme(resolveTheme());
   </script>
