@@ -4,17 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Student Movement Tracker</title>
-  <!-- iOS standalone app -->
+
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
-  <!-- Android standalone app -->
+
   <link rel="manifest" href="manifest.json">
-  <!-- Home-screen icon -->
+
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
 
-  <!-- A single theme-color meta, rewritten at runtime by applyWrapperTheme(). -->
   <meta name="theme-color" id="theme-color-meta" content="#ffffff">
 
   <style>
@@ -27,14 +26,10 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      overscroll-behavior: none;   /* iOS can still bounce this page, and the whole frame with it */
+      overscroll-behavior: none;
       background-color: #ffffff;
     }
-    /**
-     * Only a fallback for the frames before the head script runs. From then on the background is an
-     * inline style written by applyWrapperTheme, which wins over all of this — including when the
-     * band is pinned and no longer tracks the theme at all.
-     */
+
     @media (prefers-color-scheme: dark) {
       html, body { background-color: #1A222C; }
     }
@@ -51,11 +46,6 @@
       visibility: hidden;
     }
 
-    /**
-     * The frame starts transparent, so what shows through during a load is the colour
-     * applyWrapperTheme has already written onto this page rather than Google's half-built page.
-     * See revealFrame() for what that is hiding and when the curtain lifts.
-     */
     iframe {
       width: 100vw;
       height: 100vh;
@@ -75,34 +65,7 @@
 
   <script>
     // ===== STATUS BAR STRIP =====
-    /**
-     * The band above the app is this page's background: the one part of the screen the app cannot
-     * paint itself, since it runs on a different origin and cannot reach out of its iframe.
-     *
-     * followAppTheme makes the strip obey the theme chosen inside the app, so the two always match.
-     * The trade-off is on iOS, where status-bar-style="default" makes the system take the clock and
-     * battery colour from the phone's own appearance setting and ignore this page: a dark phone with
-     * light chosen in the app shows white-on-white system text until the mismatch ends. Setting it
-     * to false hands the strip back to the phone, giving a readable clock at the cost of a seam.
-     *
-     * bandColour pins the band to one colour that reads correctly in both themes, so it never has
-     * to change and has no crossfade to lag behind. It is applied to both surfaces a browser might
-     * be reading: this page's background and the theme-color meta. Which of the two fills the band
-     * in an installed iOS app is not documented, so neither is left free to move.
-     *
-     * #003380 is --primary-dark from CSS_Themes, mirrored there as the --band token, which is what
-     * the navbar paints behind the status bar wherever the app is drawn under it. The two must hold
-     * the same hex: whether iOS reserves the strip or lets the app draw under it, the colour is
-     * then identical either way. Change both together. iOS picks white system text over it in both
-     * themes. Set bandColour to null to go back to a band that follows the theme.
-     *
-     * TO FIND OUT WHAT ACTUALLY PAINTS THE BAND: set bandColour to '#FF00FF' and reload. A magenta
-     * band means this page controls it and pinning works; a band that still goes pale-then-dark on
-     * a theme change means the colour is coming from somewhere else entirely — most likely the app
-     * frame's own document rather than this wrapper — and no change here will ever fix it.
-     * Remember that GitHub Pages serves this file with a ten-minute max-age, so give an edit time
-     * to land, or remove the app from the home screen and re-add it.
-     */
+    /** The band above the app is this page's background: the one part of the screen the app cannot paint itself, since it runs on a different origin and cannot reach out of its iframe. */
     var STATUS_BAR = {
       followAppTheme: true,
       bandColour: '#003380'
@@ -115,11 +78,7 @@
       try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
     }
 
-    /**
-     * Two synchronous writes, which on iOS are disk I/O. The app re-announces its theme on every
-     * foreground and on every modal open and close, so most calls would rewrite what is already
-     * there; the pair actually stored is remembered and repeats are dropped.
-     */
+    /** Two synchronous writes, which on iOS are disk I/O. */
     var lastWritten = null;
 
     function writeStoredTheme(theme) {
@@ -130,7 +89,7 @@
       try {
         localStorage.setItem(THEME_KEY, theme);
         localStorage.setItem('smt-theme-base', systemTheme());
-      } catch (e) { /* storage blocked; the choice simply is not remembered */ }
+      } catch (e) {}
     }
 
     function systemTheme() {
@@ -138,23 +97,7 @@
         ? 'dark' : 'light';
     }
 
-    /**
-     * Paints the strip. Written as an inline style rather than left to the stylesheet, since the
-     * cascade has too many ways to go wrong and this is the one thing on the page that must be
-     * right.
-     *
-     * When the framed page supplies a colour it wins, because only that page knows which of its
-     * surfaces borders the strip. The app sends its navbar (--surface), the maintenance notice (now
-     * served by Apps Script too) sends its page background, and while a modal is open the app sends the navbar already
-     * composited with the modal's dim, so the strip greys out along with everything below it.
-     *
-     * The frame is painted along with the page. An iframe whose document has not painted yet is
-     * transparent, so without this the wrapper's own colour would show through for the first frames
-     * of a load, which is the white band seen on reload.
-     *
-     * @param {string} theme    'light' or 'dark'.
-     * @param {string} [colour] A six-digit hex colour; anything else falls back to the theme's own.
-     */
+    /** Paints the strip. */
     var lastPainted = null;
 
     function applyWrapperTheme(theme, colour) {
@@ -162,24 +105,12 @@
 
       if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
 
-      // Both surfaces that iOS could plausibly be reading are pinned together. Which of the two
-      // actually fills the band in the installed app is not documented and not something this code
-      // can detect, so rather than guess, neither is left free to change. See the note on
-      // STATUS_BAR.bandColour for how to find out which one it was.
       var band = /^#[0-9a-fA-F]{6}$/.test(STATUS_BAR.bandColour || '')
         ? STATUS_BAR.bandColour
         : colour;
 
-      // Most messages arriving here ask for what is already on screen, and repainting still dirties
-      // the iframe's backdrop and re-triggers the browser's tint crossfade.
       if (resolved + colour + band === lastPainted) return;
 
-      // Written synchronously, and first. In an ordinary Safari tab the band at the top of the
-      // screen is Safari's own chrome rather than anything this page paints, and its tint is read
-      // from this meta, crossfaded over roughly a quarter of a second — the slowest surface in a
-      // theme change and the one needing the earliest start. This write used to sit in a setTimeout
-      // on the reasoning that re-evaluating browser chrome need not finish before the strip
-      // repaints; true, but it meant the tint was not even requested until after everything else.
       var meta = document.getElementById('theme-color-meta');
       if (meta) meta.setAttribute('content', band);
 
@@ -187,19 +118,12 @@
       document.documentElement.style.backgroundColor = band;
       if (document.body) document.body.style.backgroundColor = band;
 
-      // The frame keeps the app's own colour, not the band's. It is only ever visible in the frames
-      // before the app's document has painted, and the point of filling it is that those frames
-      // look like the app rather than like whatever is behind it.
       var frame = document.getElementById('app-frame');
       if (frame) frame.style.backgroundColor = colour;
 
-      // Recorded only once there was a whole page to paint. The first call runs from <head>, where
-      // neither the body nor the frame exists yet, and must not suppress the repeat that follows
-      // them at the end of the body.
       if (document.body && frame) lastPainted = resolved + colour + band;
     }
 
-    /** @return {string} The theme to show: the app's stored choice while current, else the device's. */
     function resolveTheme() {
       var system = systemTheme();
       var choice = readStoredTheme();
@@ -223,26 +147,17 @@
   </script>
 </head>
 <body>
-  <!-- Full-screen container. Its src is set at the end of the script below. -->
+
   <div id="safe-area-probe" aria-hidden="true"></div>
   <iframe id="app-frame" allow="geolocation; camera"></iframe>
 
   <script>
-    /**
-     * Maintenance mode, the bypass key and the "official link only" check all live in Apps Script
-     * now (the Maintenance tab and doGet). This page always loads the app and carries two things the
-     * app cannot keep itself, both added to the frame's address only, never the visible one:
-     *
-     *   embed=1         tells doGet the request came through this page.
-     *   access=<token>  this tab's staff bypass, held in sessionStorage. It survives a refresh and is
-     *                   gone when the tab or home-screen app is closed.
-     */
+    /** Maintenance mode, the bypass key and the "official link only" check all live in Apps Script now (the Maintenance tab and doGet). */
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
     const ACCESS_KEY = "smt-access";
-    const HIDDEN_PARAMS = ["embed", "access", "bypass"];   // bypass: left over from old links
+    const HIDDEN_PARAMS = ["embed", "access", "bypass"];
 
-    // The in-memory copy covers browsers that refuse sessionStorage; it lasts until this page reloads.
     var memoryAccess = null;
 
     function readAccess() {
@@ -251,20 +166,15 @@
 
     function writeAccess(token) {
       memoryAccess = token;
-      try { sessionStorage.setItem(ACCESS_KEY, token); } catch (e) { /* memory copy only */ }
+      try { sessionStorage.setItem(ACCESS_KEY, token); } catch (e) {}
     }
 
     function clearAccess() {
       memoryAccess = null;
-      try { sessionStorage.removeItem(ACCESS_KEY); } catch (e) { /* nothing stored */ }
+      try { sessionStorage.removeItem(ACCESS_KEY); } catch (e) {}
     }
 
-    /**
-     * The address bar's own parameters (page, tab, prefills) with the hidden ones stripped, so an old
-     * ?bypass= bookmark neither shows nor does anything.
-     *
-     * @return {URLSearchParams}
-     */
+    /** The address bar's own parameters (page, tab, prefills) with the hidden ones stripped, so an old ?bypass= bookmark neither shows nor does anything. */
     function visibleParams() {
       const params = new URLSearchParams(window.location.search);
       let changed = false;
@@ -280,7 +190,6 @@
       return params;
     }
 
-    /** @return {string} The frame address: the visible parameters plus embed and any bypass token. */
     function buildAppUrl() {
       const params = visibleParams();
       params.set("embed", "1");
@@ -291,15 +200,7 @@
       return baseUrl + "?" + params.toString();
     }
 
-    /**
-     * Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a
-     * per-deployment *.googleusercontent.com origin rather than from script.google.com itself.
-     * That subdomain is not fixed, so the check matches the parent domain. The maintenance notice is
-     * served the same way as the app.
-     *
-     * @param {string} origin
-     * @return {boolean}
-     */
+    /** Apps Script renders the web app inside a nested sandbox iframe, so messages arrive from a per-deployment *.googleusercontent.com origin rather than from script.google.com itself. */
     function isTrustedOrigin(origin) {
       try {
         if (origin === window.location.origin) return true;
@@ -313,40 +214,16 @@
       }
     }
 
-    /**
-     * The app's own window, captured from the first message it sends. Reaching it by walking
-     * frames would depend on Apps Script's nested sandbox layout; event.source does not.
-     */
+    /** The app's own window, captured from the first message it sends. */
     var appWindow = null;
 
-    /**
-     * Lifts the curtain once the app is full size and worth looking at.
-     *
-     * Apps Script does not serve the app directly. It serves a white-bodied page of its own holding
-     * the app in a nested sandbox iframe, created at the HTML default of roughly 300x150 and only
-     * stretched to fill once Apps Script's own script runs. Until then the app paints as a small
-     * rectangle in the top-left corner with white along the bottom and right — the flash on reload.
-     * This page cannot restyle that page or measure inside it, both being another origin, so the
-     * app measures its own viewport and posts APP_PAINTED when it is real (initReloadCurtain in
-     * Wrapper_Bridge.html).
-     *
-     * Deliberately not triggered by THEME, APP_READY or the frame's load event: the first two are
-     * posted while the app document is still parsing, and load belongs to Google's outer page, so
-     * any of the three can arrive during the very state being hidden. The timeout is the safety
-     * net — a frame left hidden by a lost message is a blank app, far worse than a flash.
-     *
-     * Idempotent; every path may fire.
-     */
+    /** Lifts the curtain once the app is full size and worth looking at. */
     function revealFrame() {
       var frame = document.getElementById('app-frame');
       if (frame) frame.classList.add('is-ready');
     }
 
-    /**
-     * Device details for the lockout email. Measured here because this page runs first-party: the
-     * sandboxed app cannot see home-screen mode, and Chrome only reveals OS version and phone model
-     * to the top-level page. Sent to the app whenever it announces itself.
-     */
+    /** Device details for the lockout email. */
     var deviceInfo = (function () {
       var standalone = window.navigator.standalone === true ||
           (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
@@ -369,20 +246,17 @@
           }
           sendDeviceInfo();
         })
-        .catch(function () { /* the basic details still go */ });
+        .catch(function () {});
     }
 
     function sendDeviceInfo() {
       if (!appWindow) return;
       try {
         appWindow.postMessage({ type: 'DEVICE_INFO', info: deviceInfo }, '*');
-      } catch (e) { /* frame gone */ }
+      } catch (e) {}
     }
 
-    /**
-     * (Re)loads the frame. The curtain drops first so Google's half-built page is hidden again, and
-     * everything learned about the previous document is forgotten.
-     */
+    /** (Re)loads the frame. */
     var curtainTimer = null;
 
     function loadApp() {
@@ -398,12 +272,7 @@
       frame.src = buildAppUrl();
     }
 
-    /**
-     * Sends the top safe-area inset to the app.
-     *
-     * env(safe-area-inset-top) resolves to zero inside an iframe, so the app cannot read it and the
-     * value is measured here from #safe-area-probe and handed over.
-     */
+    /** Sends the top safe-area inset to the app. */
     var lastInsetSent = -1;
 
     function sendSafeArea(force) {
@@ -412,10 +281,6 @@
       var probe = document.getElementById('safe-area-probe');
       var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
 
-      // Reading the probe is a forced layout here, and on the other side the value lands on a
-      // custom property on :root, which invalidates the app's entire computed style. Neither is
-      // worth doing for an inset that has not moved. "force" covers a fresh app document, which
-      // starts with no --safe-top however recently the value was last sent.
       if (inset === lastInsetSent && !force) return;
       lastInsetSent = inset;
 
@@ -431,8 +296,6 @@
       setTimeout(function () { sendSafeArea(true); }, 100);
     });
 
-    // Bound before the iframe is given a src. The app announces its theme as the first thing it
-    // does, and a listener attached afterwards can miss that message on a warm cache.
     window.addEventListener("message", function(event) {
       if (!isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
@@ -445,20 +308,18 @@
 
       if (event.data.type === "APP_READY") {
         appWindow = event.source;
-        sendSafeArea(true);       // a document that has just loaded has no --safe-top yet
+        sendSafeArea(true);
         sendDeviceInfo();
         return;
       }
 
-      // The page asking whether this really is its wrapper (Firefox has no ancestorOrigins).
       if (event.data.type === "WRAPPER_PING") {
         try {
           event.source.postMessage({ type: "WRAPPER_PONG", nonce: event.data.nonce }, event.origin);
-        } catch (e) { /* frame gone */ }
+        } catch (e) {}
         return;
       }
 
-      // A correct key on the maintenance notice. The token is only ever kept for this session.
       if (event.data.type === "ACCESS_GRANTED") {
         if (!/^[a-f0-9]{64}$/.test(event.data.token || "")) return;
         writeAccess(event.data.token);
@@ -471,18 +332,12 @@
         return;
       }
 
-      // Maintenance switched, Try Again, or the notice seeing the tracker go live.
       if (event.data.type === "RELOAD") {
         loadApp();
         return;
       }
 
       if (event.data.type === "THEME") {
-        // Nothing runs before the repaint. Every frame on this page shares one main thread, so the
-        // app cannot paint its own swap until this handler returns, and anything done first lands
-        // on both. The inset used to be measured and echoed back from here, and the theme written
-        // to storage, on every message — a forced layout, two synchronous writes and a full style
-        // invalidation inside the app, all in front of the paint they were delaying.
         const theme = event.data.theme === "dark" ? "dark" : "light";
         const firstContact = !appWindow;
         appWindow = event.source;
