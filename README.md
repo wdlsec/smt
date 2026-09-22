@@ -19,7 +19,7 @@ In the Apps Script project, `index.html` is kept as `Github_index.html` and `man
 ## What the wrapper does
 
 - **Loads the app** from the Apps Script `/exec` URL (the `baseUrl` constant in `index.html`) with `embed=1` added, which tells the server the request came through this page. Opened without the wrapper, the server returns a bare "Page Unavailable" notice.
-- **Carries the staff bypass token** (`access=`) during maintenance. The token is kept in `sessionStorage` only, so it survives a refresh and disappears when the tab or home-screen app closes. Neither parameter ever shows in the address bar.
+- **Carries the admin access token** (`access=`) during maintenance. The token is kept in `sessionStorage` only, so it survives a refresh and disappears when the tab or home-screen app closes. Neither parameter ever shows in the address bar.
 - **Answers the wrapper check.** The app pings the wrapper (`WRAPPER_PING`), and the wrapper replies from its own origin (`WRAPPER_PONG`), which another site cannot fake.
 - **Paints the status-bar strip** on iOS to match the app's theme, and passes the safe-area inset into the iframe, where it cannot be measured.
 - **Hides the reload flash.** The iframe stays transparent until the app reports it is full size (`APP_PAINTED`), with a 4-second fallback.
