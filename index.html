@@ -14,7 +14,12 @@
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
 
-  <meta name="theme-color" id="theme-color-meta" content="#ffffff">
+  <!--
+    Status bar / Safari bars follow the phone's own light or dark setting. Declared statically (no
+    script), so iOS switches them itself at the same moment the app's colours switch.
+  -->
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1A222C">
 
   <style>
     * {
@@ -22,6 +27,11 @@
       padding: 0;
       box-sizing: border-box;
     }
+    /*
+     * Safari tints its top and bottom bars from the page's own colours (the iframe sits at the top),
+     * so these follow the system theme in CSS alone: no message from the app, no script, no lag.
+     * Colours match the app's navbar (light #ffffff, dark #1A222C).
+     */
     html, body {
       width: 100%;
       height: 100%;
@@ -30,11 +40,6 @@
       background-color: #ffffff;
     }
 
-    @media (prefers-color-scheme: dark) {
-      html, body { background-color: #1A222C; }
-    }
-    html[data-theme="light"], html[data-theme="light"] body { background-color: #ffffff; }
-    html[data-theme="dark"],  html[data-theme="dark"] body  { background-color: #1A222C; }
 
     #safe-area-probe {
       position: fixed;
@@ -55,101 +60,18 @@
       left: 0;
       border: none;
       display: block;
-      background-color: inherit;
+      background-color: #ffffff;
       opacity: 0;
       transition: opacity 0.15s ease;
     }
 
     iframe.is-ready { opacity: 1; }
+
+    @media (prefers-color-scheme: dark) {
+      html, body, iframe { background-color: #1A222C; }
+    }
   </style>
 
-  <script>
-    // ===== STATUS BAR STRIP =====
-    /** The band above the app is this page's background: the one part of the screen the app cannot paint itself, since it runs on a different origin and cannot reach out of its iframe. */
-    var STATUS_BAR = {
-      followAppTheme: true,
-      bandColour: '#003380'
-    };
-
-    var THEME_KEY = 'smt-theme';
-    var THEME_COLOURS = { light: '#ffffff', dark: '#1A222C' };
-
-    function readStoredTheme() {
-      try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
-    }
-
-    /** Two synchronous writes, which on iOS are disk I/O. */
-    var lastWritten = null;
-
-    function writeStoredTheme(theme) {
-      var pair = theme + '|' + systemTheme();
-      if (pair === lastWritten) return;
-      lastWritten = pair;
-
-      try {
-        localStorage.setItem(THEME_KEY, theme);
-        localStorage.setItem('smt-theme-base', systemTheme());
-      } catch (e) {}
-    }
-
-    function systemTheme() {
-      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-        ? 'dark' : 'light';
-    }
-
-    /** Paints the strip. */
-    var lastPainted = null;
-
-    function applyWrapperTheme(theme, colour) {
-      var resolved = theme === 'dark' ? 'dark' : 'light';
-
-      if (!/^#[0-9a-fA-F]{6}$/.test(colour || '')) colour = THEME_COLOURS[resolved];
-
-      var band = /^#[0-9a-fA-F]{6}$/.test(STATUS_BAR.bandColour || '')
-        ? STATUS_BAR.bandColour
-        : colour;
-
-      if (resolved + colour + band === lastPainted) return;
-
-      var meta = document.getElementById('theme-color-meta');
-      if (meta) meta.setAttribute('content', band);
-
-      document.documentElement.setAttribute('data-theme', resolved);
-      document.documentElement.style.backgroundColor = band;
-      if (document.body) document.body.style.backgroundColor = band;
-
-      /*
-       * On iOS 26 home-screen apps the status bar appears to be tinted from the background of the
-       * element at the top of the page (this iframe) rather than from theme-color, so the iframe
-       * carries the band colour too. The app paints over it, so it only shows as the status-bar tint.
-       */
-      var frame = document.getElementById('app-frame');
-      if (frame) frame.style.backgroundColor = band;
-
-      if (document.body && frame) lastPainted = resolved + colour + band;
-    }
-
-    function resolveTheme() {
-      var system = systemTheme();
-      var choice = readStoredTheme();
-      var base = null;
-      try { base = localStorage.getItem('smt-theme-base'); } catch (e) {}
-
-      return (choice && base === system) ? choice : system;
-    }
-
-    applyWrapperTheme(resolveTheme());
-
-    if (window.matchMedia) {
-      var wrapperThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      var onWrapperThemeChange = function () {
-        if (STATUS_BAR.followAppTheme) applyWrapperTheme(resolveTheme());
-      };
-
-      if (wrapperThemeQuery.addEventListener) wrapperThemeQuery.addEventListener('change', onWrapperThemeChange);
-      else if (wrapperThemeQuery.addListener) wrapperThemeQuery.addListener(onWrapperThemeChange);
-    }
-  </script>
 </head>
 <body>
 
@@ -342,17 +264,11 @@
         return;
       }
 
+      /* The bars follow the system theme in CSS; the app's THEME message only marks first contact. */
       if (event.data.type === "THEME") {
-        const theme = event.data.theme === "dark" ? "dark" : "light";
         const firstContact = !appWindow;
         appWindow = event.source;
-
-        if (STATUS_BAR.followAppTheme) applyWrapperTheme(theme, event.data.colour);
-
-        setTimeout(function () {
-          writeStoredTheme(theme);
-          if (firstContact) sendSafeArea(true);
-        }, 0);
+        if (firstContact) setTimeout(function () { sendSafeArea(true); }, 0);
         return;
       }
 
@@ -368,8 +284,6 @@
     });
 
     loadApp();
-
-    applyWrapperTheme(resolveTheme());
   </script>
 </body>
 </html>
