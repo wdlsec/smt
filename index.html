@@ -118,8 +118,13 @@
       document.documentElement.style.backgroundColor = band;
       if (document.body) document.body.style.backgroundColor = band;
 
+      /*
+       * On iOS 26 home-screen apps the status bar appears to be tinted from the background of the
+       * element at the top of the page (this iframe) rather than from theme-color, so the iframe
+       * carries the band colour too. The app paints over it, so it only shows as the status-bar tint.
+       */
       var frame = document.getElementById('app-frame');
-      if (frame) frame.style.backgroundColor = colour;
+      if (frame) frame.style.backgroundColor = band;
 
       if (document.body && frame) lastPainted = resolved + colour + band;
     }
