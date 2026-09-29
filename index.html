@@ -14,12 +14,8 @@
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" type="image/png" href="icon.png">
 
-  <!--
-    Status bar / Safari bars follow the phone's own light or dark setting. Declared statically (no
-    script), so iOS switches them itself at the same moment the app's colours switch.
-  -->
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1A222C">
+  <!-- Status bar / Safari bars: one fixed colour in every theme, so there is nothing to switch or lag. -->
+  <meta name="theme-color" content="#003380">
 
   <style>
     * {
@@ -29,15 +25,15 @@
     }
     /*
      * Safari tints its top and bottom bars from the page's own colours (the iframe sits at the top),
-     * so these follow the system theme in CSS alone: no message from the app, no script, no lag.
-     * Colours match the app's navbar (light #ffffff, dark #1A222C).
+     * so the page and iframe carry the same fixed #003380 as theme-color and the manifest. The app
+     * paints over the iframe, so this only ever shows as the bar colour.
      */
     html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
       overscroll-behavior: none;
-      background-color: #ffffff;
+      background-color: #003380;
     }
 
 
@@ -60,16 +56,12 @@
       left: 0;
       border: none;
       display: block;
-      background-color: #ffffff;
+      background-color: #003380;
       opacity: 0;
       transition: opacity 0.15s ease;
     }
 
     iframe.is-ready { opacity: 1; }
-
-    @media (prefers-color-scheme: dark) {
-      html, body, iframe { background-color: #1A222C; }
-    }
   </style>
 
 </head>
@@ -264,7 +256,7 @@
         return;
       }
 
-      /* The bars follow the system theme in CSS; the app's THEME message only marks first contact. */
+      /* The bars are a fixed colour; the app's THEME message only marks first contact. */
       if (event.data.type === "THEME") {
         const firstContact = !appWindow;
         appWindow = event.source;
