@@ -22,7 +22,7 @@ In the Apps Script project, `index.html` is kept as `Github_index.html` and `man
 - **Carries the admin access token** (`access=`) during maintenance. The token is kept in `sessionStorage` only, so it survives a refresh and disappears when the tab or home-screen app closes. Neither parameter ever shows in the address bar.
 - **Answers the wrapper check.** The app pings the wrapper (`WRAPPER_PING`), and the wrapper replies from its own origin (`WRAPPER_PONG`), which another site cannot fake.
 - **Paints the status-bar strip** on iOS to match the app's theme, and passes the safe-area inset into the iframe, where it cannot be measured.
-- **Hides the reload flash.** The iframe stays transparent until the app reports it is full size (`APP_PAINTED`), with a 4-second fallback.
+- **Shows a loading screen.** The icon and a spinner show while the iframe stays transparent, until the app reports it is full size (`APP_PAINTED`), with a 4-second fallback. This also hides the reload flash.
 - **Keeps the address bar in step** with the page and tab the user is on (`UPDATE_URL`), so links can be shared.
 - **Sends device details** (home-screen vs browser, OS version, phone model) to the app. These appear in lockout and kill-switch alert emails.
 
