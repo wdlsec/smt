@@ -26,8 +26,7 @@
     }
     /*
      * Safari tints its top and bottom bars from the page's own colours (the iframe sits at the top),
-     * so the page and iframe carry the same fixed #003380 as theme-color and the manifest. The app
-     * paints over the iframe, so this only ever shows as the bar colour.
+     * so the page carries the same fixed #003380 as theme-color and the manifest.
      */
     html, body {
       width: 100%;
@@ -36,7 +35,6 @@
       overscroll-behavior: none;
       background-color: #003380;
     }
-
 
     #safe-area-probe {
       position: fixed;
@@ -48,6 +46,7 @@
       visibility: hidden;
     }
 
+    /* Stays invisible (and untouchable) until the app says it has painted, so a blank frame never shows. */
     iframe {
       width: 100vw;
       height: 100vh;
@@ -57,14 +56,15 @@
       left: 0;
       border: none;
       display: block;
-      background-color: #003380;
+      background-color: transparent;
       opacity: 0;
+      pointer-events: none;
       transition: opacity 0.15s ease;
     }
 
-    iframe.is-ready { opacity: 1; }
+    iframe.is-ready { opacity: 1; pointer-events: auto; }
 
-    /* Shown under the transparent iframe until the app reports it has painted. */
+    /* ===== SPLASH: walker, title, logo; a notice and Reload appear only when loading stalls. ===== */
     #splash {
       position: fixed;
       inset: 0;
@@ -72,23 +72,79 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 18px;
-      color: rgba(255, 255, 255, 0.85);
+      gap: 16px;
+      padding: 24px;
+      color: rgba(255, 255, 255, 0.9);
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      font-size: 0.95rem;
-      letter-spacing: 0.04em;
+      text-align: center;
     }
-    #splash img { width: 72px; height: 72px; border-radius: 16px; }
-    #splash .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid rgba(255, 255, 255, 0.25);
-      border-top-color: #ffffff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+    #splash .splash-title { font-size: 1rem; font-weight: 600; letter-spacing: 0.04em; }
+
+    /* No dots, then . then .. then ... on repeat; hidden dots keep their space, so the words never shift. */
+    #splash .dots span { animation: 2s steps(1, end) infinite; }
+    #splash .dots span:nth-child(1) { animation-name: dot-step-1; }
+    #splash .dots span:nth-child(2) { animation-name: dot-step-2; }
+    #splash .dots span:nth-child(3) { animation-name: dot-step-3; }
+    @keyframes dot-step-1 { 0% { opacity: 0; } 25% { opacity: 1; } }
+    @keyframes dot-step-2 { 0% { opacity: 0; } 50% { opacity: 1; } }
+    @keyframes dot-step-3 { 0% { opacity: 0; } 75% { opacity: 1; } }
+    /* Nudged so the gap above "Loading tracker" (feet to letters) matches the gap below (letters to logo). */
+    #splash img { width: 72px; height: 72px; border-radius: 16px; margin-top: 2px; }
+
+    #splash .splash-note { font-size: 0.875rem; color: rgba(255, 255, 255, 0.75); min-height: 1.2em; }
+    #splash .splash-reload {
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #003380;
+      background: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 13px 11px;   /* 1px less on top: the font sits low in its line box, so this centres the word */
+      cursor: pointer;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) { #splash .spinner { animation-duration: 2.4s; } }
+    #splash .splash-reload:active { transform: scale(0.97); }
+    #splash [hidden] { display: none; }
+
+    /*
+     * Walking on the spot, upright and facing right, 0.5s per stride (one stride per dot step).
+     * Each leg spends 55% of the stride planted (sweeping back at a steady pace, knee almost
+     * straight), then lifts with an easy knee bend and swings forward, so a foot is always on the
+     * ground. The body dips 1px when both feet are down, which keeps the planted foot level.
+     */
+    .walker { width: 50px; height: 75px; overflow: visible; margin-bottom: -3px; }
+    .walker * { stroke: #000000; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .walker .head { fill: #000000; stroke: none; }
+    .walker .shadow { fill: rgba(0, 0, 0, 0.3); stroke: none; }
+
+    .walker .body   { animation: walk-bob 0.25s linear infinite; }
+    .walker .thigh  { transform-box: view-box; transform-origin: 32px 52px; animation: walk-thigh 0.5s linear infinite; }
+    .walker .shin   { transform-box: view-box; transform-origin: 32px 70px; animation: walk-shin 0.5s linear infinite; }
+    .walker .arm    { transform-box: view-box; transform-origin: 32px 27px; animation: walk-arm 0.5s ease-in-out infinite; }
+    .walker .far .thigh, .walker .far .shin, .walker .near .arm { animation-delay: -0.25s; }
+
+    @keyframes walk-bob {
+      0%, 100% { transform: translateY(1px); animation-timing-function: ease-out; }
+      55%      { transform: translateY(0);   animation-timing-function: ease-in; }
+    }
+    @keyframes walk-thigh {
+      0%, 100% { transform: rotate(-18deg); }
+      55%      { transform: rotate(18deg);  animation-timing-function: ease-in-out; }
+    }
+    @keyframes walk-shin {
+      0%, 100% { transform: rotate(0deg); }
+      30%      { transform: rotate(3deg); }
+      55%      { transform: rotate(6deg);  animation-timing-function: ease-in-out; }
+      74%      { transform: rotate(40deg); animation-timing-function: ease-in-out; }
+      92%      { transform: rotate(6deg); }
+    }
+    @keyframes walk-arm { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .walker .thigh, .walker .shin, .walker .arm { animation-duration: 1s; }
+      .walker .body { animation-duration: 0.5s; }
+      .walker .far .thigh, .walker .far .shin, .walker .near .arm { animation-delay: -0.5s; }
+    }
   </style>
 
 </head>
@@ -96,9 +152,25 @@
 
   <div id="safe-area-probe" aria-hidden="true"></div>
   <div id="splash" role="status" aria-live="polite">
+    <svg class="walker" viewBox="0 0 64 96" aria-hidden="true" focusable="false">
+      <ellipse class="shadow" cx="32" cy="90" rx="17" ry="3"/>
+      <g class="body">
+        <g class="far">
+          <g class="arm"><path d="M32 27 L32 39 L35 49"/></g>
+          <g class="thigh"><line x1="32" y1="52" x2="32" y2="70"/><g class="shin"><path d="M32 70 L32 86 L38 86"/></g></g>
+        </g>
+        <line x1="32" y1="24" x2="32" y2="52"/>
+        <circle class="head" cx="32" cy="12" r="9"/>
+        <g class="near">
+          <g class="thigh"><line x1="32" y1="52" x2="32" y2="70"/><g class="shin"><path d="M32 70 L32 86 L38 86"/></g></g>
+          <g class="arm"><path d="M32 27 L32 39 L35 49"/></g>
+        </g>
+      </g>
+    </svg>
+    <div class="splash-title">Loading tracker<span class="dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></div>
     <img src="icon.png" alt="">
-    <div class="spinner" aria-hidden="true"></div>
-    <div>Loading tracker…</div>
+    <div class="splash-note" id="splash-note"></div>
+    <button type="button" class="splash-reload" id="splash-reload" hidden>Reload</button>
   </div>
   <iframe id="app-frame" allow="geolocation; camera; clipboard-read; clipboard-write"></iframe>
 
@@ -107,7 +179,13 @@
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
     const ACCESS_KEY = "smt-access";
-    const HIDDEN_PARAMS = ["embed", "access", "bypass"];
+    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r"];
+
+    /** Loading watchdog: show Reload after SLOW_MS, retry once by itself after RETRY_MS. */
+    const SLOW_MS = 12000;
+    const RETRY_MS = 25000;
+    /** How long the app has to answer the check made on returning to this tab. */
+    const ALIVE_MS = 3000;
 
     var memoryAccess = null;
 
@@ -141,6 +219,7 @@
       return params;
     }
 
+    /** "r" makes every load a fresh address, so a browser refresh can never hand back a stale copy of the frame. */
     function buildAppUrl() {
       const params = visibleParams();
       params.set("embed", "1");
@@ -148,6 +227,7 @@
       const token = readAccess();
       if (token) params.set("access", token);
 
+      params.set("r", Date.now().toString(36));
       return baseUrl + "?" + params.toString();
     }
 
@@ -167,12 +247,6 @@
 
     /** The app's own window, captured from the first message it sends. */
     var appWindow = null;
-
-    /** Lifts the curtain once the app is full size and worth looking at. */
-    function revealFrame() {
-      var frame = document.getElementById('app-frame');
-      if (frame) frame.classList.add('is-ready');
-    }
 
     /** Device details for the lockout email. */
     var deviceInfo = (function () {
@@ -207,21 +281,108 @@
       } catch (e) {}
     }
 
-    /** (Re)loads the frame. */
-    var curtainTimer = null;
+    // ===== LOADING & WATCHDOG =====
+    var painted = false;
+    var autoRetried = false;
+    var slowTimer = null;
+    var retryTimer = null;
 
-    function loadApp() {
+    function setSplashNote(text, showReload) {
+      document.getElementById('splash-note').textContent = text || '';
+      document.getElementById('splash-reload').hidden = !showReload;
+    }
+
+    /** Shows the app once it has painted; the splash stays underneath, covered. */
+    function revealFrame() {
+      painted = true;
+      clearTimeout(slowTimer);
+      clearTimeout(retryTimer);
+      setSplashNote('', false);
+      document.getElementById('app-frame').classList.add('is-ready');
+    }
+
+    /** Still nothing after SLOW_MS: say so and offer Reload, while the load carries on. */
+    function onSlowLoad() {
+      if (painted) return;
+      setSplashNote(navigator.onLine === false
+        ? 'No internet connection. It will load once you are back online.'
+        : 'Sorry, taking longer than usual.', true);
+    }
+
+    /**
+     * (Re)loads the frame behind the splash. The watchdog restarts with each load; a load the app
+     * never paints gets one automatic retry, after which only Reload starts another.
+     *
+     * @param {boolean} [isAutoRetry]
+     */
+    function loadApp(isAutoRetry) {
       var frame = document.getElementById('app-frame');
       frame.classList.remove('is-ready');
 
+      painted = false;
       appWindow = null;
       lastInsetSent = -1;
+      cancelAliveCheck();
+      if (!isAutoRetry) {
+        autoRetried = false;
+        setSplashNote('', false);
+      }
 
-      clearTimeout(curtainTimer);
-      curtainTimer = setTimeout(revealFrame, 4000);
+      clearTimeout(slowTimer);
+      clearTimeout(retryTimer);
+      slowTimer = setTimeout(onSlowLoad, SLOW_MS);
+      if (!autoRetried) {
+        retryTimer = setTimeout(function () {
+          if (painted) return;
+          autoRetried = true;
+          loadApp(true);
+        }, RETRY_MS);
+      }
 
       frame.src = buildAppUrl();
     }
+
+    document.getElementById('splash-reload').addEventListener('click', function () { loadApp(false); });
+
+    window.addEventListener('online', function () {
+      if (!painted) loadApp(false);
+    });
+
+    // ===== CHECK ON RETURN =====
+    /** Returning to the tab or home-screen app: the app must answer, or the frame is reloaded behind the splash. */
+    var aliveTimer = null;
+    var aliveNonce = null;
+
+    function cancelAliveCheck() {
+      clearTimeout(aliveTimer);
+      aliveTimer = null;
+      aliveNonce = null;
+    }
+
+    function checkAppAlive() {
+      if (!painted || aliveTimer) return;
+      if (!appWindow) return loadApp(false);
+
+      aliveNonce = Math.random().toString(36).slice(2);
+      aliveTimer = setTimeout(function () {
+        aliveTimer = null;
+        loadApp(false);
+      }, ALIVE_MS);
+
+      try {
+        appWindow.postMessage({ type: 'WRAPPER_HEALTH', nonce: aliveNonce }, '*');
+      } catch (e) {
+        cancelAliveCheck();
+        loadApp(false);
+      }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) checkAppAlive();
+    });
+    window.addEventListener('pageshow', function (event) {
+      if (event.persisted) checkAppAlive();
+    });
 
     /** Sends the top safe-area inset to the app. */
     var lastInsetSent = -1;
@@ -257,6 +418,11 @@
         return;
       }
 
+      if (event.data.type === "APP_ALIVE") {
+        if (aliveNonce && event.data.nonce === aliveNonce) cancelAliveCheck();
+        return;
+      }
+
       if (event.data.type === "APP_READY") {
         appWindow = event.source;
         sendSafeArea(true);
@@ -274,7 +440,7 @@
       if (event.data.type === "ACCESS_GRANTED") {
         if (!/^[a-f0-9]{64}$/.test(event.data.token || "")) return;
         writeAccess(event.data.token);
-        if (event.data.reload) loadApp();
+        if (event.data.reload) loadApp(false);
         return;
       }
 
@@ -284,7 +450,7 @@
       }
 
       if (event.data.type === "RELOAD") {
-        loadApp();
+        loadApp(false);
         return;
       }
 
@@ -307,7 +473,7 @@
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
-    loadApp();
+    loadApp(false);
   </script>
 </body>
 </html>
