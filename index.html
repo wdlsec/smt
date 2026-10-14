@@ -107,21 +107,22 @@
     #splash [hidden] { display: none; }
 
     /*
-     * Walking on the spot, upright and facing right, 0.5s per stride (one stride per dot step).
-     * Each leg spends 55% of the stride planted (sweeping back at a steady pace, knee almost
-     * straight), then lifts with an easy knee bend and swings forward, so a foot is always on the
-     * ground. The body dips 1px when both feet are down, which keeps the planted foot level.
+     * Walking on the spot, upright and facing right: 1s per stride, so each footstep lasts one dot
+     * step (0.5s). There is deliberately no reduced-motion variant, so it runs at this speed on
+     * every device. Each leg spends 55% of the stride planted (sweeping back at a steady pace,
+     * knee almost straight), then lifts with an easy knee bend and swings forward, so a foot is
+     * always on the ground. The body dips 1px when both feet are down, keeping the planted foot level.
      */
     .walker { width: 50px; height: 75px; overflow: visible; margin-bottom: -3px; }
     .walker * { stroke: #000000; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     .walker .head { fill: #000000; stroke: none; }
     .walker .shadow { fill: rgba(0, 0, 0, 0.3); stroke: none; }
 
-    .walker .body   { animation: walk-bob 0.25s linear infinite; }
-    .walker .thigh  { transform-box: view-box; transform-origin: 32px 52px; animation: walk-thigh 0.5s linear infinite; }
-    .walker .shin   { transform-box: view-box; transform-origin: 32px 70px; animation: walk-shin 0.5s linear infinite; }
-    .walker .arm    { transform-box: view-box; transform-origin: 32px 27px; animation: walk-arm 0.5s ease-in-out infinite; }
-    .walker .far .thigh, .walker .far .shin, .walker .near .arm { animation-delay: -0.25s; }
+    .walker .body   { animation: walk-bob 0.5s linear infinite; }
+    .walker .thigh  { transform-box: view-box; transform-origin: 32px 52px; animation: walk-thigh 1s linear infinite; }
+    .walker .shin   { transform-box: view-box; transform-origin: 32px 70px; animation: walk-shin 1s linear infinite; }
+    .walker .arm    { transform-box: view-box; transform-origin: 32px 27px; animation: walk-arm 1s ease-in-out infinite; }
+    .walker .far .thigh, .walker .far .shin, .walker .near .arm { animation-delay: -0.5s; }
 
     @keyframes walk-bob {
       0%, 100% { transform: translateY(1px); animation-timing-function: ease-out; }
@@ -139,12 +140,6 @@
       92%      { transform: rotate(6deg); }
     }
     @keyframes walk-arm { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
-
-    @media (prefers-reduced-motion: reduce) {
-      .walker .thigh, .walker .shin, .walker .arm { animation-duration: 1s; }
-      .walker .body { animation-duration: 0.5s; }
-      .walker .far .thigh, .walker .far .shin, .walker .near .arm { animation-delay: -0.5s; }
-    }
   </style>
 
 </head>
