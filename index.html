@@ -69,13 +69,15 @@
     iframe.is-ready { opacity: 1; pointer-events: auto; }
 
     /*
-     * Home-screen app: no browser bars come or go, so the frame takes the full screen. iOS 26 can
-     * report 100dvh one status bar short there (793px of an 852px screen), which left the navy page
-     * showing as a band at the bottom; 100lvh is the whole screen.
+     * Home-screen app on some iOS 26 installs (WebKit bug 301994): the page is given one status bar
+     * less than the screen (793px of 852px) and anything position: fixed stops there, leaving a strip
+     * at the bottom. With html.ios-gap (set by fitStandaloneGap) the page is made taller by the
+     * missing --ios-gap and the frame is placed in the page instead of fixed, so it runs to the
+     * bottom of the screen. Window scrolling is held at the top, so the extra height never scrolls.
      */
-    @media (display-mode: standalone) {
-      iframe { height: 100lvh; }
-    }
+    html.ios-gap,
+    html.ios-gap body { overflow: visible; height: calc(100% + var(--ios-gap)); }
+    html.ios-gap iframe { position: absolute; height: calc(100dvh + var(--ios-gap)); }
 
     /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
     #splash {
@@ -182,6 +184,28 @@
       if (remember !== false) {
         try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
       }
+    }
+
+    /** Home-screen app only: how far the page falls short of the screen, applied as html.ios-gap / --ios-gap. 0 on a normal install. */
+    function fitStandaloneGap() {
+      if (!STANDALONE) return;
+      var w = window.innerWidth, h = window.innerHeight;
+      var screenH = h > w ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+      var gap = Math.round(screenH - h);
+      if (gap < 1 || gap > 100) gap = 0;
+      var root = document.documentElement;
+      root.style.setProperty('--ios-gap', gap + 'px');
+      root.classList.toggle('ios-gap', gap > 0);
+      if (gap && window.scrollY) window.scrollTo(0, 0);
+    }
+
+    if (STANDALONE) {
+      fitStandaloneGap();
+      window.addEventListener('resize', fitStandaloneGap);
+      window.addEventListener('orientationchange', function () { setTimeout(fitStandaloneGap, 100); });
+      window.addEventListener('scroll', function () {
+        if (window.scrollY && document.documentElement.classList.contains('ios-gap')) window.scrollTo(0, 0);
+      }, { passive: true });
     }
 
     (function () {
@@ -559,7 +583,7 @@
           'screen      ' + window.screen.width + ' x ' + window.screen.height,
           'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
           'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
-          'inset sent  ' + lastInsetSent
+          'inset sent  ' + lastInsetSent + ' | ios-gap ' + (getComputedStyle(document.documentElement).getPropertyValue('--ios-gap') || 'none')
         ].concat(units.map(function (u) {
           return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
         })).join('\n');
