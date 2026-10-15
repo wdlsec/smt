@@ -67,6 +67,15 @@
 
     iframe.is-ready { opacity: 1; pointer-events: auto; }
 
+    /*
+     * Home-screen app: no browser bars come or go, so the frame takes the full screen. iOS 26 can
+     * report 100dvh one status bar short there (793px of an 852px screen), which left the navy page
+     * showing as a band at the bottom; 100lvh is the whole screen.
+     */
+    @media (display-mode: standalone) {
+      iframe { height: 100lvh; }
+    }
+
     /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
     #splash {
       position: fixed;
@@ -191,8 +200,7 @@
     const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug"];
 
     /** ?debug=1 shows the viewport measurements over the page, for diagnosing iOS layout bugs. Read before the URL is cleaned. */
-    const DEBUG = new URLSearchParams(window.location.search).get("debug") === "1" ||
-        window.navigator.standalone === true;   // TEMPORARY TEST BUILD: overlay on every home-screen launch. Put the normal index.html back after testing.
+    const DEBUG = new URLSearchParams(window.location.search).get("debug") === "1";
 
     /** Loading watchdog: show Reload after SLOW_MS, retry once by itself after RETRY_MS. */
     const SLOW_MS = 12000;
@@ -397,38 +405,14 @@
       if (event.persisted) checkAppAlive();
     });
 
-    // ===== iOS HOME-SCREEN VIEWPORT BUG =====
-    /**
-     * Some iOS 26 home-screen installs (WebKit bug 301994) report a top safe area of 0 and a viewport
-     * one status bar short, while still drawing the page from the very top of the screen: the app
-     * slides under the clock and the navy page shows as a band at the bottom. Detected as a home-screen
-     * app in portrait with no inset and a screen taller than the viewport by a status bar's worth
-     * (20 to 80px). The missing height then stands in for the inset and the frame is stretched to the
-     * full screen. A working install reports a real inset and a full-height viewport, so it never triggers.
-     *
-     * @returns {number} The top inset to give the app.
-     */
-    function measureTopInset() {
-      var probe = document.getElementById('safe-area-probe');
-      var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
-      var w = window.innerWidth, h = window.innerHeight;
-      var gap = 0;
-
-      if (inset === 0 && window.navigator.standalone === true && h > w) {
-        var missing = Math.round(Math.max(window.screen.width, window.screen.height) - h);
-        if (missing >= 20 && missing <= 80) gap = missing;
-      }
-
-      document.getElementById('app-frame').style.height = gap ? (h + gap) + 'px' : '';
-      return gap || inset;
-    }
-
     /** Sends the top safe-area inset to the app. */
     var lastInsetSent = -1;
 
     function sendSafeArea(force) {
-      var inset = measureTopInset();
       if (!appWindow) return;
+
+      var probe = document.getElementById('safe-area-probe');
+      var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
 
       if (inset === lastInsetSent && !force) return;
       lastInsetSent = inset;
@@ -538,7 +522,7 @@
           'screen      ' + window.screen.width + ' x ' + window.screen.height,
           'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
           'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
-          'inset sent  ' + lastInsetSent + ' | measureTopInset() ' + measureTopInset()
+          'inset sent  ' + lastInsetSent
         ].concat(units.map(function (u) {
           return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
         })).join('\n');
@@ -547,7 +531,6 @@
 
     if (DEBUG) startDebugOverlay();
 
-    measureTopInset();
     loadApp(false);
   </script>
 </body>
