@@ -201,9 +201,17 @@
       if (gap && window.scrollY) window.scrollTo(0, 0);
     }
 
+    /**
+     * iOS can shrink the page after it first lays out without firing resize, so the gap is
+     * re-measured whenever the size may have settled: on load, when the app paints, on return to
+     * the app, on visual-viewport changes, and twice more shortly after load.
+     */
     if (STANDALONE) {
       fitStandaloneGap();
-      window.addEventListener('resize', fitStandaloneGap);
+      ['resize', 'load', 'pageshow', 'focus'].forEach(function (e) { window.addEventListener(e, fitStandaloneGap); });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) fitStandaloneGap(); });
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', fitStandaloneGap);
+      window.addEventListener('load', function () { setTimeout(fitStandaloneGap, 300); setTimeout(fitStandaloneGap, 1500); });
       window.addEventListener('orientationchange', function () { setTimeout(fitStandaloneGap, 100); });
       window.addEventListener('scroll', function () {
         if (window.scrollY && document.documentElement.classList.contains('ios-gap')) window.scrollTo(0, 0);
@@ -383,6 +391,7 @@
       clearTimeout(retryTimer);
       setSplashNote('', false);
       document.getElementById('app-frame').classList.add('is-ready');
+      fitStandaloneGap();
     }
 
     /** Still nothing after SLOW_MS: say so and offer Reload, while the load carries on. */
