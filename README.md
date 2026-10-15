@@ -28,7 +28,7 @@ The icon shows the loading-screen student (same uniform colours) stepping out of
 - **Loads the app** from the Apps Script `/exec` URL (the `baseUrl` constant in `index.html`) with `embed=1` added, which tells the server the request came through this page. Opened without the wrapper, the server returns a bare "Page Unavailable" notice.
 - **Carries the admin access token** (`access=`) during maintenance. The token is kept in `sessionStorage` only, so it survives a refresh and disappears when the tab or home-screen app closes. Neither parameter ever shows in the address bar.
 - **Answers the wrapper check.** The app pings the wrapper (`WRAPPER_PING`), and the wrapper replies from its own origin (`WRAPPER_PONG`), which another site cannot fake.
-- **Keeps the bars one colour.** The status bar and Safari's bars are a fixed `#003380` in both themes (`theme-color`, the page background and the manifest), and the wrapper passes the safe-area inset into the iframe, where it cannot be measured. Some iOS 26 home-screen installs report no inset and a viewport one status bar short (WebKit bug 301994); the wrapper detects that, sends the missing height as the inset and stretches the iframe to the full screen.
+- **Keeps the bars one colour.** The status bar and Safari's bars are a fixed `#003380` in both themes (`theme-color`, the page background and the manifest), and the wrapper passes the safe-area inset into the iframe, where it cannot be measured. In home-screen mode the iframe is 100lvh tall: iOS 26 can report 100dvh one status bar short there, which left a navy band at the bottom.
 - **Shows a loading screen.** A walking student and "Loading tracker..." show while the iframe stays invisible, until the app reports it has painted (`APP_PAINTED`). After 12 seconds a notice and a Reload button appear; after 25 seconds the wrapper retries once by itself.
 - **Checks the app on return.** Coming back to the tab or home-screen app, the wrapper asks the app to answer (`WRAPPER_HEALTH` / `APP_ALIVE`) within 3 seconds, and reloads it behind the loading screen if it does not.
 - **Keeps the address bar in step** with the page and tab the user is on (`UPDATE_URL`), so links can be shared.
@@ -51,7 +51,8 @@ The icon shows the loading-screen student (same uniform colours) stepping out of
 
 - **New Apps Script deployment URL:** update `baseUrl` in `index.html`.
 - **New GitHub Pages address:** update `Links!B3` in the spreadsheet as well. The app only trusts messages from that origin.
-- **Bar colour:** change `#003380` in all three places together: the `theme-color` meta tag and the `html, body` background in `index.html`, and `theme_color` / `background_color` in `manifest.json`.
+- **Bar colour:** change `#003380` in all four places together: the `theme-color` meta tag and the `html, body` background in `index.html`, `theme_color` / `background_color` in `manifest.json`, and `--band` in the app's `CSS_Themes` (the strip the app paints behind the status bar).
+- **Measuring layout on a phone:** open the site in Safari with `?debug=1` on the address to show the viewport measurements over the page.
 - **Caching:** GitHub Pages caches files for about 10 minutes. After an edit, wait, or remove and re-add the home-screen icon.
 
 ## Changing the icon
