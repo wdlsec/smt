@@ -9,11 +9,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SMT Tracker">
 
-  <link rel="manifest" href="manifest.json">
+  <!-- ?v= busts browser and GitHub Pages caches: bump it whenever an icon or the manifest changes. -->
+  <link rel="manifest" href="manifest.json?v=2">
   <link rel="preconnect" href="https://script.google.com">
 
-  <link rel="apple-touch-icon" href="icon.png">
-  <link rel="icon" type="image/png" href="icon.png">
+  <!-- Each place gets the file drawn for it: iOS home screen, browser tab, Android/desktop fallback. -->
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2">
 
   <!-- Status bar / Safari bars: one fixed colour in every theme, so there is nothing to switch or lag. -->
   <meta name="theme-color" content="#003380">
@@ -64,7 +67,7 @@
 
     iframe.is-ready { opacity: 1; pointer-events: auto; }
 
-    /* ===== SPLASH: walker, title, logo; a notice and Reload appear only when loading stalls. ===== */
+    /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
     #splash {
       position: fixed;
       inset: 0;
@@ -88,9 +91,6 @@
     @keyframes dot-step-1 { 0% { opacity: 0; } 25% { opacity: 1; } }
     @keyframes dot-step-2 { 0% { opacity: 0; } 50% { opacity: 1; } }
     @keyframes dot-step-3 { 0% { opacity: 0; } 75% { opacity: 1; } }
-    /* Nudged so the gap above "Loading tracker" (feet to letters) matches the gap below (letters to logo). */
-    #splash img { width: 72px; height: 72px; border-radius: 16px; margin-top: 2px; }
-
     #splash .splash-note { font-size: 0.875rem; color: rgba(255, 255, 255, 0.75); min-height: 1.2em; }
     #splash .splash-reload {
       font: inherit;
@@ -178,7 +178,6 @@
       </g>
     </svg>
     <div class="splash-title">Loading tracker<span class="dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></div>
-    <img src="icon.png" alt="">
     <div class="splash-note" id="splash-note"></div>
     <button type="button" class="splash-reload" id="splash-reload" hidden>Reload</button>
   </div>
