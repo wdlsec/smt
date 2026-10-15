@@ -112,10 +112,17 @@
      * every device. Each leg spends 55% of the stride planted (sweeping back at a steady pace,
      * knee almost straight), then lifts with an easy knee bend and swings forward, so a foot is
      * always on the ground. The body dips 1px when both feet are down, keeping the planted foot level.
+     * Dressed in the boys' uniform: a polo fading from white at the collar to light blue at the hem
+     * (sleeves included), light blue long pants and white shoes. The head and forearms are emoji
+     * yellow, a colour that reads as anyone rather than any one skin tone.
      */
     .walker { width: 50px; height: 75px; overflow: visible; margin-bottom: -3px; }
-    .walker * { stroke: #000000; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-    .walker .head { fill: #000000; stroke: none; }
+    .walker line, .walker path { stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .walker .shirt { stroke: url(#walker-shirt); }
+    .walker .pants { stroke: #7fb2e5; }
+    .walker .skin { stroke: #ffcc4d; }
+    .walker .feet { stroke: #ffffff; }
+    .walker .head { fill: #ffcc4d; stroke: none; }
     .walker .shadow { fill: rgba(0, 0, 0, 0.3); stroke: none; }
 
     .walker .body   { animation: walk-bob 0.5s linear infinite; }
@@ -148,17 +155,25 @@
   <div id="safe-area-probe" aria-hidden="true"></div>
   <div id="splash" role="status" aria-live="polite">
     <svg class="walker" viewBox="0 0 64 96" aria-hidden="true" focusable="false">
+      <defs>
+        <!-- Polo: white down to the chest, then fading to light blue at the hem (y 24 to 52). -->
+        <linearGradient id="walker-shirt" gradientUnits="userSpaceOnUse" x1="0" y1="22" x2="0" y2="54">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.3" stop-color="#ffffff"/>
+          <stop offset="1" stop-color="#5ec3ee"/>
+        </linearGradient>
+      </defs>
       <ellipse class="shadow" cx="32" cy="90" rx="17" ry="3"/>
       <g class="body">
         <g class="far">
-          <g class="arm"><path d="M32 27 L32 39 L35 49"/></g>
-          <g class="thigh"><line x1="32" y1="52" x2="32" y2="70"/><g class="shin"><path d="M32 70 L32 86 L38 86"/></g></g>
+          <g class="arm"><path class="skin" d="M32 33 L32 39 L35 49"/><line class="shirt" x1="32" y1="27" x2="32" y2="33"/></g>
+          <g class="thigh"><line class="pants" x1="32" y1="52" x2="32" y2="70"/><g class="shin"><line class="pants" x1="32" y1="70" x2="32" y2="83"/><path class="feet" d="M32 86 L38 86"/></g></g>
         </g>
-        <line x1="32" y1="24" x2="32" y2="52"/>
+        <line class="shirt" x1="32" y1="24" x2="32" y2="52"/>
         <circle class="head" cx="32" cy="12" r="9"/>
         <g class="near">
-          <g class="thigh"><line x1="32" y1="52" x2="32" y2="70"/><g class="shin"><path d="M32 70 L32 86 L38 86"/></g></g>
-          <g class="arm"><path d="M32 27 L32 39 L35 49"/></g>
+          <g class="thigh"><line class="pants" x1="32" y1="52" x2="32" y2="70"/><g class="shin"><line class="pants" x1="32" y1="70" x2="32" y2="83"/><path class="feet" d="M32 86 L38 86"/></g></g>
+          <g class="arm"><path class="skin" d="M32 33 L32 39 L35 49"/><line class="shirt" x1="32" y1="27" x2="32" y2="33"/></g>
         </g>
       </g>
     </svg>
