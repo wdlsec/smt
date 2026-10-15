@@ -177,14 +177,24 @@
     var PAGE_COLOURS = { light: '#f7fafc', dark: '#0F141A' };
     var THEME_KEY = 'smt-wrapper-theme';
 
+    var standaloneTheme = null;
+    var standalonePainted = false;
+
+    /** The page goes to the app's colour once the app has painted; until then it stays navy, so the loading screen fills the screen. */
     function setStandaloneTheme(theme, remember) {
       if (!STANDALONE) return;
-      theme = theme === 'dark' ? 'dark' : 'light';
-      document.documentElement.style.backgroundColor = PAGE_COLOURS[theme];
-      if (document.body) document.body.style.backgroundColor = PAGE_COLOURS[theme];
+      standaloneTheme = theme === 'dark' ? 'dark' : 'light';
+      var colour = standalonePainted ? PAGE_COLOURS[standaloneTheme] : '';
+      document.documentElement.style.backgroundColor = colour;
+      if (document.body) document.body.style.backgroundColor = colour;
       if (remember !== false) {
-        try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+        try { localStorage.setItem(THEME_KEY, standaloneTheme); } catch (e) {}
       }
+    }
+
+    function setStandalonePainted(isPainted) {
+      standalonePainted = isPainted;
+      if (standaloneTheme) setStandaloneTheme(standaloneTheme, false);
     }
 
     /**
@@ -400,6 +410,7 @@
       setSplashNote('', false);
       document.getElementById('app-frame').classList.add('is-ready');
       fitStandaloneGap();
+      setStandalonePainted(true);
     }
 
     /** Still nothing after SLOW_MS: say so and offer Reload, while the load carries on. */
@@ -421,6 +432,7 @@
       frame.classList.remove('is-ready');
 
       painted = false;
+      setStandalonePainted(false);
       appWindow = null;
       lastInsetSent = -1;
       cancelAliveCheck();
@@ -498,6 +510,9 @@
 
       var top = probeHeight('safe-area-probe');
       var bottom = probeHeight('safe-area-probe-bottom');
+      // The iOS 26 bug can report the home bar as 0. Every iPhone with a notch or Dynamic Island
+      // (top inset 44px or more) has a 34px home bar in portrait, so a home-screen app uses that.
+      if (!bottom && STANDALONE && top >= 44 && window.innerHeight > window.innerWidth) bottom = 34;
       var key = top + ',' + bottom;
 
       if (key === lastInsetSent && !force) return;
