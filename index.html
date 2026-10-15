@@ -29,7 +29,8 @@
     }
     /*
      * Safari tints its top and bottom bars from the page's own colours (the iframe sits at the top),
-     * so the page carries the same fixed #003380 as theme-color and the manifest.
+     * so the page carries the same fixed #003380 as theme-color and the manifest. The home-screen app
+     * swaps it for the app's page colour (see HOME-SCREEN BACKGROUND).
      */
     html, body {
       width: 100%;
@@ -80,6 +81,7 @@
     #splash {
       position: fixed;
       inset: 0;
+      background-color: #003380;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -157,6 +159,40 @@
     }
     @keyframes walk-arm { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
   </style>
+
+  <script>
+    /**
+     * ===== HOME-SCREEN BACKGROUND =====
+     * On some iOS 26 home-screen installs the page is given one status bar less than the screen
+     * (793px of 852px), and iOS fills the strip below it with the page's background colour from when
+     * the app opened (WebKit bug 301994); no page content can reach it. So in home-screen mode the page
+     * behind everything is the app's own background (--bg-light in CSS_Themes) from the first paint,
+     * in the theme the app last used here, and that strip reads as part of the app. Browser tabs keep
+     * the navy above.
+     */
+    var STANDALONE = window.navigator.standalone === true;
+    var PAGE_COLOURS = { light: '#f7fafc', dark: '#0F141A' };
+    var THEME_KEY = 'smt-wrapper-theme';
+
+    function setStandaloneTheme(theme, remember) {
+      if (!STANDALONE) return;
+      theme = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.style.backgroundColor = PAGE_COLOURS[theme];
+      if (document.body) document.body.style.backgroundColor = PAGE_COLOURS[theme];
+      if (remember !== false) {
+        try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+      }
+    }
+
+    (function () {
+      if (!STANDALONE) return;
+      var saved = null;
+      try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+      var system = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      setStandaloneTheme(saved || system, false);
+      document.addEventListener('DOMContentLoaded', function () { setStandaloneTheme(saved || system, false); });
+    })();
+  </script>
 
 </head>
 <body>
@@ -475,10 +511,11 @@
         return;
       }
 
-      /* The bars are a fixed colour; the app's THEME message only marks first contact. */
+      /* The app's theme sets the home-screen page colour; its first THEME message also marks first contact. */
       if (event.data.type === "THEME") {
         const firstContact = !appWindow;
         appWindow = event.source;
+        setStandaloneTheme(event.data.theme);
         if (firstContact) setTimeout(function () { sendSafeArea(true); }, 0);
         return;
       }
