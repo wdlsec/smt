@@ -188,33 +188,42 @@
       }
     }
 
-    /** Home-screen app only: how far the page falls short of the screen, applied as html.ios-gap / --ios-gap. 0 on a normal install. */
+    /**
+     * Home-screen app only: how far the page falls short of the screen, applied as html.ios-gap /
+     * --ios-gap. Once found it stays on: stretching the page makes iOS report a new size, and
+     * re-measuring then would undo the stretch and loop. It is cleared only on rotation, then
+     * measured again. 0 (and nothing applied) on a normal install.
+     */
+    var iosGap = 0;
+
     function fitStandaloneGap() {
-      if (!STANDALONE) return;
+      if (!STANDALONE || iosGap) return;
       var w = window.innerWidth, h = window.innerHeight;
       var screenH = h > w ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
       var gap = Math.round(screenH - h);
-      if (gap < 1 || gap > 100) gap = 0;
-      var root = document.documentElement;
-      root.style.setProperty('--ios-gap', gap + 'px');
-      root.classList.toggle('ios-gap', gap > 0);
-      if (gap && window.scrollY) window.scrollTo(0, 0);
+      if (gap < 1 || gap > 100) return;
+      iosGap = gap;
+      document.documentElement.style.setProperty('--ios-gap', gap + 'px');
+      document.documentElement.classList.add('ios-gap');
+      if (window.scrollY) window.scrollTo(0, 0);
     }
 
-    /**
-     * iOS can shrink the page after it first lays out without firing resize, so the gap is
-     * re-measured whenever the size may have settled: on load, when the app paints, on return to
-     * the app, on visual-viewport changes, and twice more shortly after load.
-     */
+    /** iOS can shrink the page after it first lays out, so the gap is also looked for on load, when the app paints and shortly after. */
     if (STANDALONE) {
       fitStandaloneGap();
-      ['resize', 'load', 'pageshow', 'focus'].forEach(function (e) { window.addEventListener(e, fitStandaloneGap); });
-      document.addEventListener('visibilitychange', function () { if (!document.hidden) fitStandaloneGap(); });
-      if (window.visualViewport) window.visualViewport.addEventListener('resize', fitStandaloneGap);
-      window.addEventListener('load', function () { setTimeout(fitStandaloneGap, 300); setTimeout(fitStandaloneGap, 1500); });
-      window.addEventListener('orientationchange', function () { setTimeout(fitStandaloneGap, 100); });
+      window.addEventListener('resize', fitStandaloneGap);
+      window.addEventListener('load', function () {
+        fitStandaloneGap();
+        setTimeout(fitStandaloneGap, 300);
+        setTimeout(fitStandaloneGap, 1500);
+      });
+      window.addEventListener('orientationchange', function () {
+        iosGap = 0;
+        document.documentElement.classList.remove('ios-gap');
+        setTimeout(fitStandaloneGap, 300);
+      });
       window.addEventListener('scroll', function () {
-        if (window.scrollY && document.documentElement.classList.contains('ios-gap')) window.scrollTo(0, 0);
+        if (iosGap && window.scrollY) window.scrollTo(0, 0);
       }, { passive: true });
     }
 
