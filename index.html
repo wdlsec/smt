@@ -78,7 +78,8 @@
      */
     html.ios-gap,
     html.ios-gap body { overflow: visible; height: calc(100% + var(--ios-gap)); }
-    html.ios-gap iframe { position: absolute; height: calc(100dvh + var(--ios-gap)); }
+    /* The frame stops above the home bar (--ios-bottom), so nothing in the app sits under the rounded corners; the page colour shows below it. */
+    html.ios-gap iframe { position: absolute; height: calc(var(--ios-screen) - var(--ios-bottom, 0px)); }
 
     /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
     #splash {
@@ -212,9 +213,13 @@
       var gap = Math.round(screenH - h);
       if (gap < 1 || gap > 100) return;
       iosGap = gap;
+      // The frame takes the measured screen height, not 100dvh + gap: iOS can later report 100dvh as
+      // the full screen, which would push the bottom of the app off the screen.
+      document.documentElement.style.setProperty('--ios-screen', screenH + 'px');
       document.documentElement.style.setProperty('--ios-gap', gap + 'px');
       document.documentElement.classList.add('ios-gap');
       if (window.scrollY) window.scrollTo(0, 0);
+      if (typeof sendSafeArea === 'function') sendSafeArea(true);
     }
 
     /** iOS can shrink the page after it first lays out, so the gap is also looked for on load, when the app paints and shortly after. */
@@ -506,13 +511,15 @@
     }
 
     function sendSafeArea(force) {
-      if (!appWindow) return;
-
       var top = probeHeight('safe-area-probe');
       var bottom = probeHeight('safe-area-probe-bottom');
       // The iOS 26 bug can report the home bar as 0. Every iPhone with a notch or Dynamic Island
       // (top inset 44px or more) has a 34px home bar in portrait, so a home-screen app uses that.
       if (!bottom && STANDALONE && top >= 44 && window.innerHeight > window.innerWidth) bottom = 34;
+      // With the gap fix on, the wrapper keeps the frame clear of the home bar itself, so the app adds none.
+      document.documentElement.style.setProperty('--ios-bottom', iosGap ? bottom + 'px' : '0px');
+      if (iosGap) bottom = 0;
+      if (!appWindow) return;
       var key = top + ',' + bottom;
 
       if (key === lastInsetSent && !force) return;
