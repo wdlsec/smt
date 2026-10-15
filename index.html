@@ -188,7 +188,11 @@
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
     const ACCESS_KEY = "smt-access";
-    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r"];
+    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug"];
+
+    /** ?debug=1 shows the viewport measurements over the page, for diagnosing iOS layout bugs. Read before the URL is cleaned. */
+    const DEBUG = new URLSearchParams(window.location.search).get("debug") === "1" ||
+        window.navigator.standalone === true;   // TEMPORARY TEST BUILD: overlay on every home-screen launch. Put the normal index.html back after testing.
 
     /** Loading watchdog: show Reload after SLOW_MS, retry once by itself after RETRY_MS. */
     const SLOW_MS = 12000;
@@ -505,6 +509,43 @@
 
       window.history.replaceState({ path: newUrl }, '', newUrl);
     });
+
+    // ===== DEBUG OVERLAY (?debug=1) =====
+    /** Every value that decides the app's top inset and height, refreshed twice a second. Touches pass through it. */
+    function startDebugOverlay() {
+      var box = document.createElement('pre');
+      box.style.cssText = 'position:fixed;left:8px;right:8px;top:35%;z-index:9999;margin:0;padding:10px;' +
+          'background:rgba(0,0,0,0.82);color:#7CFC9A;font:12px/1.45 ui-monospace,Menlo,monospace;' +
+          'border-radius:10px;pointer-events:none;white-space:pre-wrap';
+
+      var probe = function (css) {
+        var el = document.createElement('div');
+        el.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;' + css;
+        document.body.appendChild(el);
+        return el;
+      };
+      var units = ['env(safe-area-inset-top, 0px)', 'env(safe-area-inset-bottom, 0px)', '100vh', '100svh', '100lvh', '100dvh']
+          .map(function (u) { return { name: u.replace('env(safe-area-inset-', 'env-').replace(', 0px)', ''), el: probe('height:' + u) }; });
+      document.body.appendChild(box);
+
+      setInterval(function () {
+        var vv = window.visualViewport;
+        var frame = document.getElementById('app-frame');
+        box.textContent = [
+          'mode        ' + (window.navigator.standalone === true ? 'home-screen app' : 'browser tab') +
+              ' | display-mode standalone: ' + (window.matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'),
+          'inner       ' + window.innerWidth + ' x ' + window.innerHeight,
+          'screen      ' + window.screen.width + ' x ' + window.screen.height,
+          'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
+          'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
+          'inset sent  ' + lastInsetSent + ' | measureTopInset() ' + measureTopInset()
+        ].concat(units.map(function (u) {
+          return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
+        })).join('\n');
+      }, 500);
+    }
+
+    if (DEBUG) startDebugOverlay();
 
     measureTopInset();
     loadApp(false);
