@@ -49,7 +49,6 @@
       pointer-events: none;
       visibility: hidden;
     }
-    #safe-area-probe-bottom { height: env(safe-area-inset-bottom, 0px); }
 
     /* Stays invisible (and untouchable) until the app says it has painted, so a blank frame never shows. */
     iframe {
@@ -78,7 +77,7 @@
      */
     html.ios-gap,
     html.ios-gap body { overflow: visible; height: calc(100% + var(--ios-gap)); }
-    html.ios-gap iframe { position: absolute; height: calc(100dvh + var(--ios-gap)); }
+    html.ios-gap iframe { position: absolute; height: var(--ios-screen); }
 
     /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
     #splash {
@@ -212,6 +211,9 @@
       var gap = Math.round(screenH - h);
       if (gap < 1 || gap > 100) return;
       iosGap = gap;
+      // The frame takes the measured screen height, not 100dvh + gap: iOS can later report 100dvh as
+      // the full screen, which would push the bottom of the app off the screen.
+      document.documentElement.style.setProperty('--ios-screen', screenH + 'px');
       document.documentElement.style.setProperty('--ios-gap', gap + 'px');
       document.documentElement.classList.add('ios-gap');
       if (window.scrollY) window.scrollTo(0, 0);
@@ -250,7 +252,6 @@
 <body>
 
   <div id="safe-area-probe" aria-hidden="true"></div>
-  <div id="safe-area-probe-bottom" style="position:fixed;top:0;left:0;width:0;pointer-events:none;visibility:hidden" aria-hidden="true"></div>
   <div id="splash" role="status" aria-live="polite">
     <svg class="walker" viewBox="0 0 64 96" aria-hidden="true" focusable="false">
       <defs>
@@ -497,29 +498,20 @@
       if (event.persisted) checkAppAlive();
     });
 
-    /** Sends the top (status bar) and bottom (home bar) safe-area insets to the app. */
+    /** Sends the top safe-area inset to the app. */
     var lastInsetSent = -1;
-
-    function probeHeight(id) {
-      var probe = document.getElementById(id);
-      return probe ? Math.round(probe.getBoundingClientRect().height) : 0;
-    }
 
     function sendSafeArea(force) {
       if (!appWindow) return;
 
-      var top = probeHeight('safe-area-probe');
-      var bottom = probeHeight('safe-area-probe-bottom');
-      // The iOS 26 bug can report the home bar as 0. Every iPhone with a notch or Dynamic Island
-      // (top inset 44px or more) has a 34px home bar in portrait, so a home-screen app uses that.
-      if (!bottom && STANDALONE && top >= 44 && window.innerHeight > window.innerWidth) bottom = 34;
-      var key = top + ',' + bottom;
+      var probe = document.getElementById('safe-area-probe');
+      var inset = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
 
-      if (key === lastInsetSent && !force) return;
-      lastInsetSent = key;
+      if (inset === lastInsetSent && !force) return;
+      lastInsetSent = inset;
 
       try {
-        appWindow.postMessage({ type: 'SAFE_AREA', top: top, bottom: bottom }, '*');
+        appWindow.postMessage({ type: 'SAFE_AREA', top: inset }, '*');
       } catch (e) {
         console.debug('sendSafeArea: app not reachable.', e);
       }
