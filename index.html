@@ -77,6 +77,13 @@
      */
     html.ios-gap,
     html.ios-gap body { overflow: visible; height: calc(100% + var(--ios-gap)); }
+
+    /*
+     * Home-screen app: the loading screen is sized to the phone's screen from the first frame, not
+     * to the page, so when iOS changes the page height a moment after opening its centre (walker and
+     * title) does not jump.
+     */
+    html.is-standalone #splash { bottom: auto; height: var(--screen-h); }
     html.ios-gap iframe { position: absolute; height: var(--ios-screen); }
 
     /* ===== SPLASH: walker and title; a notice and Reload appear only when loading stalls. ===== */
@@ -221,6 +228,12 @@
 
     /** iOS can shrink the page after it first lays out, so the gap is also looked for on load, when the app paints and shortly after. */
     if (STANDALONE) {
+      (function () {
+        var portrait = window.innerHeight >= window.innerWidth;
+        var screenH = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+        document.documentElement.style.setProperty('--screen-h', screenH + 'px');
+        document.documentElement.classList.add('is-standalone');
+      })();
       fitStandaloneGap();
       window.addEventListener('resize', fitStandaloneGap);
       window.addEventListener('load', function () {
