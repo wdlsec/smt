@@ -449,6 +449,7 @@
       setStandalonePainted(false);
       appWindow = null;
       lastInsetSent = -1;
+      lastKeyboardSent = -1;
       cancelAliveCheck();
       if (!isAutoRetry) {
         autoRetried = false;
@@ -513,29 +514,57 @@
 
     // ===== ON-SCREEN KEYBOARD (iOS) =====
     /**
-     * iOS lays its keyboard over the page instead of shrinking it, and the frame here is full-height,
-     * so the bottom of the app (Remarks, Submit, the lower part of a suggestion list) sat behind the
-     * keyboard with nothing left to scroll. While the keyboard is up the frame is fitted to the visible
-     * area above it, which also follows any pan iOS makes to show the field; the app then scrolls the
-     * focused field into that space (Components.html). Inline styles only, so closing the keyboard hands
-     * the frame straight back to the CSS above, ios-gap included. Android already shrinks the page.
+     * iOS lays its keyboard over the page instead of shrinking it, so the bottom of the full-height
+     * frame (Remarks, Submit, the lower part of a suggestion list) sat behind it with nothing left to
+     * scroll. The frame keeps its size (resizing it re-lays out the whole app, which shows as a lurch);
+     * instead the app is told how much of it the keyboard covers, and makes that much room and scrolls
+     * the field into view itself (Components.html). The usual keyboard height is remembered here and
+     * sent along, so the app can start before iOS reports the keyboard. If iOS pans the screen to show
+     * a field, the frame's top follows the pan so the app stays in view. Android shrinks the page
+     * itself, so nothing is covered there and 0 is sent.
      */
-    var KEYBOARD_MIN_PX = 120;
+    var KEYBOARD_MIN_PX = 100;
+    var KEYBOARD_KEY = 'smt-keyboard-h';
+    var keyboardTypical = 0;
+    var lastKeyboardSent = -1;
+    var keyboardFrame = 0;
 
-    function fitFrameToKeyboard() {
+    try { keyboardTypical = Number(localStorage.getItem(KEYBOARD_KEY)) || 0; } catch (e) {}
+
+    /** The part of the frame below the visible area, less the home-screen gap (which the frame fills on purpose). */
+    function measureKeyboard() {
+      keyboardFrame = 0;
       var vv = window.visualViewport;
       var frame = document.getElementById('app-frame');
       if (!vv || !frame) return;
 
-      var layoutH = Math.max(window.innerHeight, document.documentElement.clientHeight);
-      var isOpen = layoutH - vv.height > KEYBOARD_MIN_PX;
-      frame.style.top = isOpen ? Math.round(vv.offsetTop) + 'px' : '';
-      frame.style.height = isOpen ? Math.round(vv.height) + 'px' : '';
+      var covered = Math.round(frame.offsetHeight - vv.height - iosGap);
+      var inset = covered > KEYBOARD_MIN_PX ? covered : 0;
+      frame.style.top = inset && vv.offsetTop > 0 ? Math.round(vv.offsetTop) + 'px' : '';
+
+      if (inset && inset !== keyboardTypical) {
+        keyboardTypical = inset;
+        try { localStorage.setItem(KEYBOARD_KEY, String(inset)); } catch (e) {}
+      }
+      sendKeyboard(inset);
+    }
+
+    function sendKeyboard(inset) {
+      if (!appWindow || inset === lastKeyboardSent) return;
+      lastKeyboardSent = inset;
+      try {
+        appWindow.postMessage({ type: 'KEYBOARD', inset: inset, typical: keyboardTypical }, '*');
+      } catch (e) {}
+    }
+
+    /** iOS fires these many times while the keyboard moves; one measurement per frame is enough. */
+    function scheduleKeyboard() {
+      if (!keyboardFrame) keyboardFrame = requestAnimationFrame(measureKeyboard);
     }
 
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', fitFrameToKeyboard);
-      window.visualViewport.addEventListener('scroll', fitFrameToKeyboard);
+      window.visualViewport.addEventListener('resize', scheduleKeyboard);
+      window.visualViewport.addEventListener('scroll', scheduleKeyboard);
     }
 
     /** Sends the top safe-area inset to the app. */
@@ -581,6 +610,8 @@
         appWindow = event.source;
         sendSafeArea(true);
         sendDeviceInfo();
+        lastKeyboardSent = -1;
+        measureKeyboard();
         return;
       }
 
@@ -655,8 +686,8 @@
           'inner       ' + window.innerWidth + ' x ' + window.innerHeight,
           'screen      ' + window.screen.width + ' x ' + window.screen.height,
           'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
-          'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top) +
-              (frame.style.height ? ' (fitted to keyboard)' : ''),
+          'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
+          'keyboard    ' + Math.max(0, lastKeyboardSent) + ' sent | usual ' + keyboardTypical,
           'inset sent  ' + lastInsetSent + ' | ios-gap ' + (getComputedStyle(document.documentElement).getPropertyValue('--ios-gap') || 'none')
         ].concat(units.map(function (u) {
           return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
