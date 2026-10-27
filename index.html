@@ -511,6 +511,33 @@
       if (event.persisted) checkAppAlive();
     });
 
+    // ===== ON-SCREEN KEYBOARD (iOS) =====
+    /**
+     * iOS lays its keyboard over the page instead of shrinking it, and the frame here is full-height,
+     * so the bottom of the app (Remarks, Submit, the lower part of a suggestion list) sat behind the
+     * keyboard with nothing left to scroll. While the keyboard is up the frame is fitted to the visible
+     * area above it, which also follows any pan iOS makes to show the field; the app then scrolls the
+     * focused field into that space (Components.html). Inline styles only, so closing the keyboard hands
+     * the frame straight back to the CSS above, ios-gap included. Android already shrinks the page.
+     */
+    var KEYBOARD_MIN_PX = 120;
+
+    function fitFrameToKeyboard() {
+      var vv = window.visualViewport;
+      var frame = document.getElementById('app-frame');
+      if (!vv || !frame) return;
+
+      var layoutH = Math.max(window.innerHeight, document.documentElement.clientHeight);
+      var isOpen = layoutH - vv.height > KEYBOARD_MIN_PX;
+      frame.style.top = isOpen ? Math.round(vv.offsetTop) + 'px' : '';
+      frame.style.height = isOpen ? Math.round(vv.height) + 'px' : '';
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', fitFrameToKeyboard);
+      window.visualViewport.addEventListener('scroll', fitFrameToKeyboard);
+    }
+
     /** Sends the top safe-area inset to the app. */
     var lastInsetSent = -1;
 
@@ -628,7 +655,8 @@
           'inner       ' + window.innerWidth + ' x ' + window.innerHeight,
           'screen      ' + window.screen.width + ' x ' + window.screen.height,
           'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
-          'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
+          'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top) +
+              (frame.style.height ? ' (fitted to keyboard)' : ''),
           'inset sent  ' + lastInsetSent + ' | ios-gap ' + (getComputedStyle(document.documentElement).getPropertyValue('--ios-gap') || 'none')
         ].concat(units.map(function (u) {
           return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
