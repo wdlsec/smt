@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- Pinch-zoom is allowed; every input is 16px, so iOS still never zooms in when a field is tapped. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Student Movement Tracker</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -290,7 +291,8 @@
     <div class="splash-note" id="splash-note"></div>
     <button type="button" class="splash-reload" id="splash-reload" hidden>Reload</button>
   </div>
-  <iframe id="app-frame" allow="geolocation; camera; clipboard-read; clipboard-write"></iframe>
+  <!-- No permissions are granted to the frame: the app uses none (Mass Upload's paste is an ordinary paste event). -->
+  <iframe id="app-frame"></iframe>
 
   <script>
     /** The Apps Script deployment. Maintenance mode, the admin key and the "official link only" check are handled there (the Admin tab and doGet). */
@@ -364,6 +366,24 @@
       } catch (e) {
         return false;
       }
+    }
+
+    /**
+     * Whether a message came from inside this page's own frame: the app runs in Apps Script's
+     * sandbox frames within the script.google.com page loaded in #app-frame, so its window (or one
+     * of its parents) is that frame's window. Checked before the origin, so no other window on the
+     * page, or a tab that opened this one, can drive the wrapper.
+     */
+    function isFromAppFrame(source) {
+      var frame = document.getElementById('app-frame');
+      var target = frame && frame.contentWindow;
+      if (!target || !source) return false;
+      for (var w = source, depth = 0; w && depth < 5; depth++) {
+        if (w === target) return true;
+        if (w === w.parent) return false;
+        w = w.parent;
+      }
+      return false;
     }
 
     /** The app's own window, captured from the first message it sends. */
@@ -600,7 +620,7 @@
     });
 
     window.addEventListener("message", function(event) {
-      if (!isTrustedOrigin(event.origin)) return;
+      if (!isFromAppFrame(event.source) || !isTrustedOrigin(event.origin)) return;
       if (!event.data) return;
 
       if (event.data.type === "APP_PAINTED") {
