@@ -295,11 +295,33 @@
   <iframe id="app-frame"></iframe>
 
   <script>
-    /** The Apps Script deployment. Maintenance mode, the admin key and the "official link only" check are handled there (the Admin tab and doGet). */
+    /**
+     * The Apps Script deployment. Sign-in, maintenance mode and the "official page only" check are all
+     * handled there (doGet and the sign-in page). If the web app ever gets a new deployment rather
+     * than a new version of this one, its /exec address changes and must be updated here.
+     */
     const baseUrl = "https://script.google.com/macros/s/AKfycbxpXslm2Kg1AA1-io4UgF0ewA7kJBMGT12S5OXRNdORn59lqSjhwwuCLUGw0YS8PCh5sw/exec";
 
-    const ACCESS_KEY = "smt-access";
-    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug"];
+    /**
+     * What this browser keeps (localStorage, so it survives switching to the Mail app and back, and
+     * closing the home-screen app):
+     *   smt-token   the sign-in token the server issued
+     *   smt-device  this browser's device ID ("id.sig"); kept after signing out, as it gives no access
+     *   smt-signin  a code request in progress: {req, email, query, at}, dropped after PENDING_MS
+     * The page's own parameters (page, tab, reason, location) are kept in the pending request too,
+     * because relaunching the home-screen app opens the manifest's start address without them.
+     */
+    const TOKEN_KEY = "smt-token";
+    const DEVICE_KEY = "smt-device";
+    const PENDING_KEY = "smt-signin";
+    const PENDING_MS = 10 * 60000;
+    /** Never shown in the address bar or passed on from it; teacher= is the old prefill, ignored now. */
+    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug", "token", "dev", "req", "email", "teacher"];
+
+    /** Shapes the server issues (Backend.gs TOKEN_PATTERN, DEVICE_ID_PATTERN, REQUEST_ID_PATTERN). */
+    const TOKEN_SHAPE = /^[0-9a-z]{1,11}\.[0-9a-f]{16}\.[0-9a-f]{24}\.[A-Za-z0-9_-]{4,200}\.[A-Za-z0-9_-]{43}$/;
+    const DEVICE_SHAPE = /^[0-9a-f]{24}\.[0-9a-f]{16}$/;
+    const REQUEST_SHAPE = /^[0-9a-f]{32}$/;
 
     /** ?debug=1 shows the viewport measurements over the page, for diagnosing iOS layout bugs. Read before the URL is cleaned. */
     const DEBUG = new URLSearchParams(window.location.search).get("debug") === "1";
@@ -310,23 +332,37 @@
     /** How long the app has to answer the check made on returning to this tab. */
     const ALIVE_MS = 3000;
 
-    var memoryAccess = null;
+    // ===== STORAGE =====
+    /** localStorage, with an in-memory copy for browsers that block it (a private window). */
+    var memoryStore = {};
 
-    function readAccess() {
-      try { return sessionStorage.getItem(ACCESS_KEY) || memoryAccess; } catch (e) { return memoryAccess; }
+    function readStore(key) {
+      try { return localStorage.getItem(key) || memoryStore[key] || ""; } catch (e) { return memoryStore[key] || ""; }
     }
 
-    function writeAccess(token) {
-      memoryAccess = token;
-      try { sessionStorage.setItem(ACCESS_KEY, token); } catch (e) {}
+    function writeStore(key, value) {
+      memoryStore[key] = value;
+      try {
+        if (value) localStorage.setItem(key, value);
+        else localStorage.removeItem(key);
+      } catch (e) {}
     }
 
-    function clearAccess() {
-      memoryAccess = null;
-      try { sessionStorage.removeItem(ACCESS_KEY); } catch (e) {}
+    /** The code request in progress, or null once it is older than PENDING_MS. */
+    function readPending() {
+      var pending = null;
+      try { pending = JSON.parse(readStore(PENDING_KEY) || "null"); } catch (e) {}
+      if (!pending || !REQUEST_SHAPE.test(pending.req || "") || !(Date.now() - pending.at < PENDING_MS)) {
+        if (pending) writeStore(PENDING_KEY, "");
+        return null;
+      }
+      return pending;
     }
 
-    /** The address bar's own parameters (page, tab, prefills) with the hidden ones stripped, so an old ?bypass= bookmark neither shows nor does anything. */
+    // The tab-only access token of the old admin-key sign-in; no longer used.
+    try { sessionStorage.removeItem("smt-access"); } catch (e) {}
+
+    /** The address bar's own parameters (page, tab, prefills) with the hidden ones stripped, so an old ?bypass= or ?teacher= neither shows nor does anything. */
     function visibleParams() {
       const params = new URLSearchParams(window.location.search);
       let changed = false;
@@ -335,20 +371,37 @@
         if (params.has(name)) { params.delete(name); changed = true; }
       });
 
-      if (changed) {
-        const qs = params.toString();
-        window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
-      }
+      if (changed) setAddressQuery(params.toString());
       return params;
     }
 
-    /** "r" makes every load a fresh address, so a browser refresh can never hand back a stale copy of the frame. */
+    function setAddressQuery(qs) {
+      window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs.replace(/^\?/, '') : ''));
+    }
+
+    /**
+     * The frame's address: the page's parameters, then the stored token, device ID and any code
+     * request in progress. A home-screen app relaunched while its user fetched a code opens without
+     * its parameters, so they come back from the pending request. "r" makes every load a fresh
+     * address, so a browser refresh can never hand back a stale copy of the frame.
+     */
     function buildAppUrl() {
-      const params = visibleParams();
+      let params = visibleParams();
+      const pending = readPending();
+      if (pending && pending.query && !params.toString()) {
+        setAddressQuery(pending.query);
+        params = visibleParams();
+      }
       params.set("embed", "1");
 
-      const token = readAccess();
-      if (token) params.set("access", token);
+      const token = readStore(TOKEN_KEY);
+      const device = readStore(DEVICE_KEY);
+      if (TOKEN_SHAPE.test(token)) params.set("token", token);
+      if (DEVICE_SHAPE.test(device)) params.set("dev", device);
+      if (pending) {
+        params.set("req", pending.req);
+        params.set("email", pending.email || "");
+      }
 
       params.set("r", Date.now().toString(36));
       return baseUrl + "?" + params.toString();
@@ -389,37 +442,10 @@
     /** The app's own window, captured from the first message it sends. */
     var appWindow = null;
 
-    /** Device details for the lockout email. */
-    var deviceInfo = (function () {
-      var standalone = window.navigator.standalone === true ||
-          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-      return {
-        display: standalone ? 'Home-screen app' : 'Browser tab',
-        screen: window.screen ? window.screen.width + ' x ' + window.screen.height : '',
-        viewport: window.innerWidth + ' x ' + window.innerHeight
-      };
-    })();
-
-    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-      navigator.userAgentData.getHighEntropyValues(['platformVersion', 'model', 'fullVersionList'])
-        .then(function (v) {
-          if (v.platformVersion) deviceInfo.platformVersion = v.platformVersion;
-          if (v.model) deviceInfo.model = v.model;
-          if (v.fullVersionList) {
-            deviceInfo.browser = v.fullVersionList
-              .filter(function (b) { return !/not.?a.?brand/i.test(b.brand); })
-              .map(function (b) { return b.brand + ' ' + b.version; }).join(', ');
-          }
-          sendDeviceInfo();
-        })
-        .catch(function () {});
-    }
-
-    function sendDeviceInfo() {
+    /** Posts to the app; these messages (layout, health checks) carry nothing secret. */
+    function postToApp(message) {
       if (!appWindow) return;
-      try {
-        appWindow.postMessage({ type: 'DEVICE_INFO', info: deviceInfo }, '*');
-      } catch (e) {}
+      try { appWindow.postMessage(message, '*'); } catch (e) {}
     }
 
     // ===== LOADING & WATCHDOG =====
@@ -573,9 +599,7 @@
     function sendKeyboard(inset) {
       if (!appWindow || inset === lastKeyboardSent) return;
       lastKeyboardSent = inset;
-      try {
-        appWindow.postMessage({ type: 'KEYBOARD', inset: inset, typical: keyboardTypical }, '*');
-      } catch (e) {}
+      postToApp({ type: 'KEYBOARD', inset: inset, typical: keyboardTypical });
     }
 
     /** Puts this page back at the top whenever iOS has scrolled it, so taps line up with the frame. */
@@ -606,12 +630,7 @@
 
       if (inset === lastInsetSent && !force) return;
       lastInsetSent = inset;
-
-      try {
-        appWindow.postMessage({ type: 'SAFE_AREA', top: inset }, '*');
-      } catch (e) {
-        console.debug('sendSafeArea: app not reachable.', e);
-      }
+      postToApp({ type: 'SAFE_AREA', top: inset });
     }
 
     window.addEventListener('resize', function () { sendSafeArea(false); });
@@ -619,72 +638,98 @@
       setTimeout(function () { sendSafeArea(true); }, 100);
     });
 
+    // ===== MESSAGES FROM THE APP =====
+    /**
+     * Sign-in messages (the app sends them only to this page's origin):
+     *   SIGNIN_REQUESTED {requestId, email}   a code was asked for: kept with the page's parameters
+     *   SIGNIN_CANCELLED                      Back on the code screen: the request is dropped
+     *   SIGNIN_DONE {token, deviceId}         signed in: both kept, the parameters restored, the frame reloaded
+     *   TOKEN_RENEWED {token}                 the daily renewal: kept, no reload
+     *   SIGNED_OUT                            the token is dropped and the frame reloaded onto the sign-in page
+     *   LOCKDOWN                              the kill switch: the token is dropped, the frame left as it is
+     */
     window.addEventListener("message", function(event) {
       if (!isFromAppFrame(event.source) || !isTrustedOrigin(event.origin)) return;
-      if (!event.data) return;
+      const data = event.data;
+      if (!data) return;
 
-      if (event.data.type === "APP_PAINTED") {
-        appWindow = event.source;
-        revealFrame();
-        return;
+      switch (data.type) {
+        case "APP_PAINTED":
+          appWindow = event.source;
+          revealFrame();
+          return;
+
+        case "APP_ALIVE":
+          if (aliveNonce && data.nonce === aliveNonce) cancelAliveCheck();
+          return;
+
+        case "APP_READY":
+          appWindow = event.source;
+          sendSafeArea(true);
+          lastKeyboardSent = -1;
+          measureKeyboard();
+          return;
+
+        case "WRAPPER_PING":
+          try { event.source.postMessage({ type: "WRAPPER_PONG", nonce: data.nonce }, event.origin); } catch (e) {}
+          return;
+
+        case "SIGNIN_REQUESTED":
+          if (!REQUEST_SHAPE.test(data.requestId || "")) return;
+          writeStore(PENDING_KEY, JSON.stringify({
+            req: data.requestId, email: String(data.email || "").slice(0, 100), query: visibleParams().toString(), at: Date.now()
+          }));
+          return;
+
+        case "SIGNIN_CANCELLED":
+          writeStore(PENDING_KEY, "");
+          return;
+
+        case "SIGNIN_DONE": {
+          if (!TOKEN_SHAPE.test(data.token || "") || !DEVICE_SHAPE.test(data.deviceId || "")) return;
+          const pending = readPending();
+          writeStore(TOKEN_KEY, data.token);
+          writeStore(DEVICE_KEY, data.deviceId);
+          writeStore(PENDING_KEY, "");
+          if (pending && pending.query && !visibleParams().toString()) setAddressQuery(pending.query);
+          loadApp(false);
+          return;
+        }
+
+        case "TOKEN_RENEWED":
+          if (TOKEN_SHAPE.test(data.token || "")) writeStore(TOKEN_KEY, data.token);
+          return;
+
+        case "SIGNED_OUT":
+          writeStore(TOKEN_KEY, "");
+          loadApp(false);
+          return;
+
+        case "LOCKDOWN":
+          writeStore(TOKEN_KEY, "");
+          return;
+
+        case "RELOAD":
+          loadApp(false);
+          return;
+
+        /* The app's theme sets the home-screen page colour; its first THEME message also marks first contact. */
+        case "THEME": {
+          const firstContact = !appWindow;
+          appWindow = event.source;
+          setStandaloneTheme(data.theme);
+          if (firstContact) setTimeout(function () { sendSafeArea(true); }, 0);
+          return;
+        }
+
+        case "UPDATE_URL": {
+          const qs = data.queryString;
+          if (typeof qs !== "string" || !/^\?[A-Za-z0-9=&%_.~-]*$/.test(qs)) return;
+          const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + qs;
+          window.history.replaceState({ path: newUrl }, '', newUrl);
+          return;
+        }
       }
-
-      if (event.data.type === "APP_ALIVE") {
-        if (aliveNonce && event.data.nonce === aliveNonce) cancelAliveCheck();
-        return;
-      }
-
-      if (event.data.type === "APP_READY") {
-        appWindow = event.source;
-        sendSafeArea(true);
-        sendDeviceInfo();
-        lastKeyboardSent = -1;
-        measureKeyboard();
-        return;
-      }
-
-      if (event.data.type === "WRAPPER_PING") {
-        try {
-          event.source.postMessage({ type: "WRAPPER_PONG", nonce: event.data.nonce }, event.origin);
-        } catch (e) {}
-        return;
-      }
-
-      if (event.data.type === "ACCESS_GRANTED") {
-        if (!/^[a-f0-9]{64}$/.test(event.data.token || "")) return;
-        writeAccess(event.data.token);
-        if (event.data.reload) loadApp(false);
-        return;
-      }
-
-      if (event.data.type === "ACCESS_REVOKED") {
-        clearAccess();
-        return;
-      }
-
-      if (event.data.type === "RELOAD") {
-        loadApp(false);
-        return;
-      }
-
-      /* The app's theme sets the home-screen page colour; its first THEME message also marks first contact. */
-      if (event.data.type === "THEME") {
-        const firstContact = !appWindow;
-        appWindow = event.source;
-        setStandaloneTheme(event.data.theme);
-        if (firstContact) setTimeout(function () { sendSafeArea(true); }, 0);
-        return;
-      }
-
-      if (event.data.type !== "UPDATE_URL") return;
-
-      const qs = event.data.queryString;
-      if (typeof qs !== "string" || !/^\?[A-Za-z0-9=&%_.~-]*$/.test(qs)) return;
-
-      const newUrl = window.location.protocol + "//" + window.location.host +
-                     window.location.pathname + qs;
-
-      window.history.replaceState({ path: newUrl }, '', newUrl);
     });
 
     // ===== DEBUG OVERLAY (?debug=1) =====
@@ -716,7 +761,8 @@
           'visualVP    ' + (vv ? Math.round(vv.width) + ' x ' + Math.round(vv.height) + ' @ top ' + Math.round(vv.offsetTop) : 'n/a'),
           'iframe      ' + Math.round(frame.getBoundingClientRect().height) + ' tall, top ' + Math.round(frame.getBoundingClientRect().top),
           'keyboard    ' + Math.max(0, lastKeyboardSent) + ' sent | usual ' + keyboardTypical,
-          'inset sent  ' + lastInsetSent + ' | ios-gap ' + (getComputedStyle(document.documentElement).getPropertyValue('--ios-gap') || 'none')
+          'inset sent  ' + lastInsetSent + ' | ios-gap ' + (getComputedStyle(document.documentElement).getPropertyValue('--ios-gap') || 'none'),
+          'signed in   ' + (TOKEN_SHAPE.test(readStore(TOKEN_KEY)) ? 'yes' : 'no') + ' | code request ' + (readPending() ? 'pending' : 'none')
         ].concat(units.map(function (u) {
           return (u.name + '            ').slice(0, 12) + Math.round(u.el.getBoundingClientRect().height);
         })).join('\n');
