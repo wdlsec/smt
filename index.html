@@ -307,7 +307,9 @@
      * closing the home-screen app):
      *   smt-token   the sign-in token the server issued
      *   smt-device  this browser's device ID ("id.sig"); kept after signing out, as it gives no access
-     *   smt-signin  a code request in progress: {req, email, query, at}, dropped after PENDING_MS
+     *   smt-signin  a code request in progress: {req, email, query, at, back}, dropped after PENDING_MS.
+     *               at is when the code was asked for (this browser's clock); back is set while the
+     *               person has gone Back to the email screen, which the frame then reopens on.
      * The page's own parameters (page, tab, reason, location) are kept in the pending request too,
      * because relaunching the home-screen app opens the manifest's start address without them.
      */
@@ -316,7 +318,7 @@
     const PENDING_KEY = "smt-signin";
     const PENDING_MS = 10 * 60000;
     /** Never shown in the address bar or passed on from it; teacher= is the old prefill, ignored now. */
-    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug", "token", "dev", "req", "email", "teacher"];
+    const HIDDEN_PARAMS = ["embed", "access", "bypass", "r", "debug", "token", "dev", "req", "email", "sent", "back", "teacher"];
 
     /** Shapes the server issues (Backend.gs TOKEN_PATTERN, DEVICE_ID_PATTERN, REQUEST_ID_PATTERN). */
     const TOKEN_SHAPE = /^[0-9a-z]{1,11}\.[0-9a-f]{16}\.[0-9a-f]{24}\.[A-Za-z0-9_-]{4,200}\.[A-Za-z0-9_-]{43}$/;
@@ -381,9 +383,10 @@
 
     /**
      * The frame's address: the page's parameters, then the stored token, device ID and any code
-     * request in progress. A home-screen app relaunched while its user fetched a code opens without
-     * its parameters, so they come back from the pending request. "r" makes every load a fresh
-     * address, so a browser refresh can never hand back a stale copy of the frame.
+     * request in progress (with when it was asked for, and whether the person had gone Back). A
+     * home-screen app relaunched while its user fetched a code opens without its parameters, so they
+     * come back from the pending request. "r" makes every load a fresh address, so a browser refresh
+     * can never hand back a stale copy of the frame.
      */
     function buildAppUrl() {
       let params = visibleParams();
@@ -401,6 +404,8 @@
       if (pending) {
         params.set("req", pending.req);
         params.set("email", pending.email || "");
+        params.set("sent", String(Math.round(pending.at)));
+        if (pending.back) params.set("back", "1");
       }
 
       params.set("r", Date.now().toString(36));
@@ -641,8 +646,12 @@
     // ===== MESSAGES FROM THE APP =====
     /**
      * Sign-in messages (the app sends them only to this page's origin):
-     *   SIGNIN_REQUESTED {requestId, email}   a code was asked for: kept with the page's parameters
-     *   SIGNIN_CANCELLED                      Back on the code screen: the request is dropped
+     *   SIGNIN_REQUESTED {requestId, email, sentAt}  a code was asked for (or the same request taken up
+     *                                         again): kept with the page's parameters and sentAt, the
+     *                                         time it was asked for (now when missing or implausible)
+     *   SIGNIN_BACK                           Back on the code screen: the request is kept, marked as
+     *                                         on the email screen, so a reload reopens that screen
+     *   SIGNIN_CANCELLED                      the request can no longer be used: it is dropped
      *   SIGNIN_DONE {token, deviceId}         signed in: both kept, the parameters restored, the frame reloaded
      *   TOKEN_RENEWED {token}                 the daily renewal: kept, no reload
      *   SIGNED_OUT                            the token is dropped and the frame reloaded onto the sign-in page
@@ -674,12 +683,22 @@
           try { event.source.postMessage({ type: "WRAPPER_PONG", nonce: data.nonce }, event.origin); } catch (e) {}
           return;
 
-        case "SIGNIN_REQUESTED":
+        case "SIGNIN_REQUESTED": {
           if (!REQUEST_SHAPE.test(data.requestId || "")) return;
+          const now = Date.now();
+          const sentAt = Number(data.sentAt);
           writeStore(PENDING_KEY, JSON.stringify({
-            req: data.requestId, email: String(data.email || "").slice(0, 100), query: visibleParams().toString(), at: Date.now()
+            req: data.requestId, email: String(data.email || "").slice(0, 100), query: visibleParams().toString(),
+            at: isFinite(sentAt) && sentAt <= now && now - sentAt < PENDING_MS ? Math.round(sentAt) : now
           }));
           return;
+        }
+
+        case "SIGNIN_BACK": {
+          const pending = readPending();
+          if (pending) writeStore(PENDING_KEY, JSON.stringify(Object.assign(pending, { back: true })));
+          return;
+        }
 
         case "SIGNIN_CANCELLED":
           writeStore(PENDING_KEY, "");
