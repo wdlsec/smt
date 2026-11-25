@@ -39,6 +39,7 @@ How long a sign-in lasts, how many devices each person may have, who may sign in
 
 ## What the wrapper does
 
+- **Turns away browsers that are too old.** The app needs iOS 15.4 (Safari 15.4) or Chrome 108 at least. Before the iframe is ever loaded, the wrapper checks what the browser can do (CSS `:has()`, `dvh` units and `<dialog>`), not what it says it is. A browser that fails gets an "Update Needed" page in the app's colours instead, with how to update (Settings → General → Software Update on an iPhone or iPad, or update the browser elsewhere) and a Try Again button, and never reaches Apps Script. Every iOS 15 device can update to 15.8, so no device is locked out.
 - **Loads the app** from the Apps Script `/exec` URL (the `baseUrl` constant in `index.html`) with `embed=1` and the stored token and device ID added. Opened without the wrapper, the server returns a bare "Page Unavailable" notice.
 - **Carries the sign-in hand-offs.** The app tells the wrapper when an OTP was requested (`SIGNIN_REQUESTED`, with when), when the person went Back to the email screen (`SIGNIN_BACK`, the request is kept), when a request can no longer be used (`SIGNIN_CANCELLED`), completed (`SIGNIN_DONE`, with the token and device ID), renewed (`TOKEN_RENEWED`) or ended (`SIGNED_OUT`), and the wrapper stores or drops what it keeps and reloads the frame where needed. `LOCKDOWN` (kill switch) drops the token; `RELOAD` reloads the frame on the same page.
 - **Answers the wrapper check.** The app pings the wrapper (`WRAPPER_PING`), and the wrapper replies from its own origin (`WRAPPER_PONG`), which another site cannot fake.
@@ -47,7 +48,7 @@ How long a sign-in lasts, how many devices each person may have, who may sign in
 - **Checks the app on return.** Coming back to the tab or home-screen app, the wrapper asks the app to answer (`WRAPPER_HEALTH` / `APP_ALIVE`) within 3 seconds, and reloads it behind the loading screen if it does not.
 - **Keeps the address bar in step** with the page and tab the user is on (`UPDATE_URL`), so links can be shared. Sign-in parameters and old ones (`access`, `bypass`, `teacher` …) are stripped from the address bar and never passed on.
 
-No device details (browser, OS, phone model) are read or sent.
+No device details (browser, OS, phone model) are read or sent. The "Update Needed" page reads the user agent only to choose its wording, and sends nothing.
 
 ## Useful links
 
@@ -56,13 +57,14 @@ No device details (browser, OS, phone model) are read or sent.
 | `https://wdlsec.github.io/smt/` | The dashboard |
 | `https://wdlsec.github.io/smt/?page=form` | An empty Submit Form |
 | `https://wdlsec.github.io/smt/?page=form&reason=...&location=...` | The form with Reason and Location pre-filled |
+| `https://wdlsec.github.io/smt/?update-test=1` | The "Update Needed" page, on any browser, for checking it |
 
 Reported By always starts as the signed-in person's name, so it is no longer pre-filled from the link (`teacher=` is ignored).
 
 ## Installing on a phone
 
-- **iPhone (Safari):** open the link, tap Share, then Add to Home Screen.
-- **Android (Chrome):** open the link, tap the ⋮ menu, then Add to Home screen or Install app.
+- **iPhone (Safari):** open the link, tap Share, then Add to Home Screen. Needs iOS 15.4 or later.
+- **Android (Chrome):** open the link, tap the ⋮ menu, then Add to Home screen or Install app. Needs Chrome 108 or later.
 
 A home-screen app and the browser keep separate storage, so each signs in on its own and counts as its own device.
 
@@ -71,6 +73,7 @@ A home-screen app and the browser keep separate storage, so each signs in on its
 - **New Apps Script deployment URL:** update `baseUrl` in `index.html`.
 - **New GitHub Pages address:** update the "Direct to current dashboard" row of the `Links` tab in the spreadsheet as well. The app only trusts that origin, and no sign-in OTP is sent for any other. Everyone has to sign in again at the new address.
 - **Bar colour:** change `#003380` in all four places together: the `theme-color` meta tag and the `html, body` background in `index.html`, `theme_color` / `background_color` in `manifest.json`, and `--band` in the app's `CSS_Themes`.
+- **Minimum browser:** the three checks are in the "UPDATE NEEDED" script in `index.html`, just above the main script. Raise or lower them together with the app's own minimum, and keep that script in old JavaScript (`var`, no arrow functions) so it still runs on the browsers it turns away.
 - **Measuring layout on a phone:** open the site in Safari with `?debug=1` on the address to show the viewport measurements over the page.
 - **Caching:** GitHub Pages caches files for about 10 minutes. After an edit, wait, or remove and re-add the home-screen icon.
 
@@ -78,7 +81,7 @@ A home-screen app and the browser keep separate storage, so each signs in on its
 
 1. Replace all six PNGs with the new artwork at the same names and sizes. Keep text out of the design: at tab and home-screen sizes it becomes unreadable stripes.
 2. For `icon-maskable-512.png`, fill the whole square and keep everything important inside the central circle (80% of the width), or Android will crop it.
-3. Bump `?v=2` to `?v=3` on every icon link and the manifest link in `index.html`, and on each `src` in `manifest.json`, so browsers fetch the new files.
+3. Bump `?v=2` to `?v=3` on every icon link and the manifest link in `index.html`, and on each `src` in `manifest.json`, so browsers fetch the new files. The "Update Needed" page's logo (`icon-192.png?v=2`, set in its script) takes the same bump.
 4. Phones keep the old home-screen icon: remove the shortcut and add it again.
 
 ## When the tracker is shut down
