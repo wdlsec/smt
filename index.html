@@ -168,6 +168,63 @@
       92%      { transform: rotate(6deg); }
     }
     @keyframes walk-arm { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
+
+    /*
+     * ===== UPDATE NEEDED: browsers older than the app supports (see the check before the main script) =====
+     * Drawn instead of the loading screen, in the app's own colours, light or dark from the system
+     * setting. Written for old engines: no inset, no custom properties, no :has() or dvh.
+     */
+    #update-needed {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow-y: auto;
+      background-color: #f7fafc;
+      color: #1a202c;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+    }
+    #update-needed[hidden] { display: none; }
+    .update-card {
+      width: 100%;
+      max-width: 400px;
+      margin: auto;
+      padding: 32px 24px 24px;
+      background-color: #ffffff;
+      border: 1px solid #cbd5e0;
+      border-top: 5px solid #0054B4;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .update-logo { display: block; width: 72px; height: 72px; margin: 0 auto 16px; border-radius: 16px; }
+    .update-card h1 { margin-bottom: 10px; font-size: 1.3rem; font-weight: 700; color: #003380; }
+    .update-card p { font-size: 1rem; line-height: 1.55; color: #4a5568; }
+    .update-retry {
+      width: 100%;
+      margin-top: 20px;
+      padding: 11px 20px;
+      border: none;
+      border-radius: 12px;
+      background-color: #0054B4;
+      color: #ffffff;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    @media (prefers-color-scheme: dark) {
+      #update-needed { background-color: #0F141A; color: #E3E8ED; }
+      .update-card { background-color: #1A222C; border-color: #2E3A47; border-top-color: #5AA0F2; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+      .update-card h1 { color: #86B4E8; }
+      .update-card p { color: #97A3B0; }
+      .update-retry { background-color: #1F6FEB; }
+    }
   </style>
 
   <script>
@@ -291,8 +348,67 @@
     <div class="splash-note" id="splash-note"></div>
     <button type="button" class="splash-reload" id="splash-reload" hidden>Reload</button>
   </div>
+
+  <!-- Shown instead of the loading screen on a browser older than the app supports (the check just below). -->
+  <div id="update-needed" role="alert" hidden>
+    <div class="update-card">
+      <img class="update-logo" id="update-logo" alt="">
+      <h1>Update Needed</h1>
+      <p id="update-text"></p>
+      <button type="button" class="update-retry" id="update-retry">Try Again</button>
+    </div>
+  </div>
+
   <!-- No permissions are granted to the frame: the app uses none (Mass Upload's paste is an ordinary paste event). -->
   <iframe id="app-frame"></iframe>
+
+  <script>
+    /**
+     * ===== UPDATE NEEDED =====
+     * The app needs iOS 15.4 (Safari 15.4) or Chrome 108 at least. Checked here, before the frame is
+     * ever loaded, by what the browser can do rather than what it says it is: all three of these
+     * arrived together in Safari 15.4, and the last of them in Chrome 108.
+     *   :has()        CSS.supports('selector(:has(*))')
+     *   dvh units     CSS.supports('height', '100dvh')
+     *   <dialog>      HTMLDialogElement.prototype.showModal
+     * That passes current Chrome on Android 10+ and Windows 10+, and the last Chromes for Android 8/9
+     * (138) and Windows 7/8.1 (109). A browser that fails, or throws (CSS.supports with selector()
+     * does on some old engines, and an old enough one has no CSS object at all), gets the "update
+     * needed" page instead, and the frame is removed, so it never makes the Apps Script round trip.
+     * The user agent only picks the wording (iPhone and iPad, or anything else). ?update-test=1 shows
+     * the page on any browser, for checking it.
+     * Written in old JavaScript (var, no arrow functions), so it still runs on the browsers it is for,
+     * even where the script below cannot.
+     */
+    var UPDATE_NEEDED = (function () {
+      if (/[?&]update-test=1(&|$)/.test(window.location.search)) return true;
+      try {
+        return !(CSS.supports('selector(:has(*))') &&
+                 CSS.supports('height', '100dvh') &&
+                 typeof HTMLDialogElement === 'function' &&
+                 'showModal' in HTMLDialogElement.prototype);
+      } catch (e) {
+        return true;
+      }
+    })();
+
+    if (UPDATE_NEEDED) (function () {
+      var ua = navigator.userAgent || '';
+      var isAppleTouch = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      document.getElementById('update-text').textContent = isAppleTouch
+        ? 'This app needs iOS 15.4 or later. Go to Settings → General → Software Update, then open the app again.'
+        : 'This app needs a newer browser. Update Chrome (or your browser), then open the app again.';
+      document.getElementById('update-logo').setAttribute('src', 'icon-192.png?v=2');
+      document.getElementById('update-retry').onclick = function () { window.location.reload(); };
+
+      document.getElementById('splash').style.display = 'none';
+      document.getElementById('update-needed').removeAttribute('hidden');
+
+      var frame = document.getElementById('app-frame');
+      if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
+    })();
+  </script>
 
   <script>
     /**
@@ -485,11 +601,13 @@
 
     /**
      * (Re)loads the frame behind the splash. The watchdog restarts with each load; a load the app
-     * never paints gets one automatic retry, after which only Reload starts another.
+     * never paints gets one automatic retry, after which only Reload starts another. Nothing loads on
+     * a browser too old for the app (UPDATE_NEEDED, above), whose frame is already gone.
      *
      * @param {boolean} [isAutoRetry]
      */
     function loadApp(isAutoRetry) {
+      if (UPDATE_NEEDED) return;
       var frame = document.getElementById('app-frame');
       frame.classList.remove('is-ready');
 
@@ -788,7 +906,7 @@
       }, 500);
     }
 
-    if (DEBUG) startDebugOverlay();
+    if (DEBUG && !UPDATE_NEEDED) startDebugOverlay();
 
     loadApp(false);
   </script>
